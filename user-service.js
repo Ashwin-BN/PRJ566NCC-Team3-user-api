@@ -6,13 +6,15 @@ let mongoDBConnectionString = process.env.MONGO_URL;
 let Schema = mongoose.Schema;
 
 let userSchema = new Schema({
-    userName: {
+    email: {
         type: String,
         unique: true
     },
     password: String,
     favourites: [String],
-    history: [String]
+    itineraries: [String],
+    name: String,
+    friends: [String],
 });
 
 let User; 
@@ -46,7 +48,7 @@ module.exports.registerUser = function (userData) {
                 let newUser = new User(userData);
 
                 newUser.save().then(() => {
-                    resolve("User " + userData.userName + " successfully registered");  
+                    resolve("User " + userData.email + " successfully registered");  
                 }).catch(err => {
                     if (err.code == 11000) {
                         reject("User Name already taken");
@@ -62,18 +64,18 @@ module.exports.registerUser = function (userData) {
 module.exports.checkUser = function (userData) {
     return new Promise(function (resolve, reject) {
 
-        User.findOne({ userName: userData.userName })
+        User.findOne({ userName: userData.email })
             .exec()
             .then(user => {
                 bcrypt.compare(userData.password, user.password).then(res => {
                     if (res === true) {
                         resolve(user);
                     } else {
-                        reject("Incorrect password for user " + userData.userName);
+                        reject("Incorrect password for user " + userData.email);
                     }
                 });
             }).catch(err => {
-                reject("Unable to find user " + userData.userName);
+                reject("Unable to find user " + userData.email);
             });
     });
 };

@@ -29,7 +29,7 @@ let strategy = new JwtStrategy(jwtOptions, function (jwt_payload, next) {
     if (jwt_payload) {
         next(null, {
             _id: jwt_payload._id,
-            userName: jwt_payload.userName
+            email: jwt_payload.email
         });
     }
     else next(null, false);
@@ -52,7 +52,7 @@ app.post("/api/user/login", (req, res) => {
     .then((user) => {
         const payload = { 
             _id: user._id,
-            username: user.userName 
+            email: user.email
         };
 
         const token = jwt.sign(payload, process.env.JWT_SECRET);
