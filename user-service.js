@@ -3,9 +3,7 @@ const bcrypt = require('bcryptjs');
 
 let mongoDBConnectionString = process.env.MONGO_URL;
 
-let Schema = mongoose.Schema;
-
-let userSchema = new Schema({
+const userSchema = new mongoose.Schema({
     email: {
         type: String,
         unique: true
@@ -13,67 +11,61 @@ let userSchema = new Schema({
     password: String,
     favorites: [String],
     itineraries: [String],
-    name: String,
+    userName: String,
     friends: [String],
 });
 
-let User; 
+let User = mongoose.models.User || mongoose.model("users", userSchema);
 
 module.exports.connect = function () {
-    return new Promise(function (resolve, reject) {
-        let db = mongoose.createConnection(mongoDBConnectionString);
-
-        db.on('error', err => {
-            reject(err);
-        });
-
-        db.once('open', () => {
-            User = db.model("users", userSchema);
-            resolve();
-        });
+    return mongoose.connect(mongoDBConnectionString, {
+        dbName: "easy_explore"
     });
 };
 
 module.exports.registerUser = function (userData) {
     return new Promise(function (resolve, reject) {
 
-        if (userData.password != userData.password2) {
+        if (userData.password !== userData.password2) {
             reject("Passwords do not match");
-        } else {
+            return;
+        }
 
-            bcrypt.hash(userData.password, 10).then(hash => {
-
+        bcrypt.hash(userData.password, 10)
+            .then(hash => {
                 userData.password = hash;
-
                 let newUser = new User(userData);
 
                 newUser.save().then(() => {
-                    resolve("User " + userData.email + " successfully registered");  
+                    resolve("User " + userData.email + " successfully registered");
                 }).catch(err => {
-                    if (err.code == 11000) {
+                    if (err.code === 11000) {
                         reject("Email already taken");
                     } else {
                         reject("There was an error creating the user: " + err);
                     }
-                })
+                });
             }).catch(err => reject(err));
-        }
     });
 };
 
 module.exports.checkUser = function (userData) {
     return new Promise(function (resolve, reject) {
-
-        User.findOne({ userName: userData.email })
-            .exec()
+        User.findOne({ email: userData.email })
             .then(user => {
-                bcrypt.compare(userData.password, user.password).then(res => {
-                    if (res === true) {
-                        resolve(user);
-                    } else {
-                        reject("Incorrect password for user " + userData.email);
-                    }
-                });
+                if (!user) {
+                    reject("Unable to find user " + userData.email);
+                    return;
+                }
+
+                bcrypt.compare(userData.password, user.password)
+                    .then(isMatch => {
+                        if (isMatch) {
+                            resolve(user);
+                        } else {
+                            reject("Incorrect password for user " + userData.email);
+                        }
+                    });
             }).catch(err => {
                 reject("Unable to find user " + userData.email);
             });
