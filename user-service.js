@@ -11,7 +11,7 @@ let userSchema = new Schema({
         unique: true
     },
     password: String,
-    favourites: [String],
+    favorites: [String],
     itineraries: [String],
     name: String,
     friends: [String],
@@ -51,7 +51,7 @@ module.exports.registerUser = function (userData) {
                     resolve("User " + userData.email + " successfully registered");  
                 }).catch(err => {
                     if (err.code == 11000) {
-                        reject("User Name already taken");
+                        reject("Email already taken");
                     } else {
                         reject("There was an error creating the user: " + err);
                     }
