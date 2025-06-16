@@ -1,17 +1,16 @@
 const mongoose = require('mongoose');
-const attraction = require('./Attraction');
-const itinerary = require('./Itinerary');
+const Schema = mongoose.Schema;
 
-const userSchema = new mongoose.Schema({
+const userSchema = new Schema({
     email: {
         type: String,
         unique: true
     },
     password: String,
-    favorites: [attraction],
-    itineraries: [itinerary],
+    favorites: [{ type: Schema.Types.ObjectId, ref: 'Attraction' }],
+    itineraries: [{ type: Schema.Types.ObjectId, ref: 'Itinerary' }],
     userName: String,
     friends: [String],
 });
 
-module.exports = userSchema;
+module.exports = mongoose.model('User', userSchema);
