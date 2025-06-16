@@ -12,8 +12,10 @@ const passportJWT = require('passport-jwt');
 const HTTP_PORT = process.env.PORT || 8080;
 
 app.use(express.json());
-app.use(cors());
-
+app.use(cors({
+    origin: ["http://localhost:3000", "https://prj-566-ncc-team3-riu86sa9r-ashwin-bns-projects.vercel.app/"],
+    credentials: true
+}));
 // JSON Web Token Setup
 let ExtractJwt = passportJWT.ExtractJwt;
 let JwtStrategy = passportJWT.Strategy;
