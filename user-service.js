@@ -1,19 +1,8 @@
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
+const userSchema = require('./models/User');
 
 let mongoDBConnectionString = process.env.MONGO_URL;
-
-const userSchema = new mongoose.Schema({
-    email: {
-        type: String,
-        unique: true
-    },
-    password: String,
-    favorites: [String],
-    itineraries: [String],
-    userName: String,
-    friends: [String],
-});
 
 let User = mongoose.models.User || mongoose.model("users", userSchema);
 
