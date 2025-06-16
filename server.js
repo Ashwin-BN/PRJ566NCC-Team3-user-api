@@ -130,7 +130,7 @@ app.delete('/api/itineraries/:id/attractions/:attractionId', passport.authentica
 // ========== ATTRACTION ROUTES ========== //
 
 // Add a new attraction to an itinerary
-app.post('/api/itineraries/:itineraryId/attractions', authenticate, (req, res) => {
+app.post('/api/itineraries/:itineraryId/attractions', passport.authenticate('jwt', { session: false }), (req, res) => {
     const { itineraryId } = req.params;
     const attraction = req.body;
 
@@ -146,7 +146,7 @@ app.post('/api/itineraries/:itineraryId/attractions', authenticate, (req, res) =
 });
 
 // Remove an attraction from an itinerary
-app.delete('/api/itineraries/:itineraryId/attractions/:attractionId', authenticate, (req, res) => {
+app.delete('/api/itineraries/:itineraryId/attractions/:attractionId', passport.authenticate('jwt', { session: false }), (req, res) => {
     const { itineraryId, attractionId } = req.params;
 
     itineraryService.removeAttraction(itineraryId, attractionId)
@@ -161,7 +161,7 @@ app.delete('/api/itineraries/:itineraryId/attractions/:attractionId', authentica
 });
 
 // Get all attractions in an itinerary
-app.get('/api/itineraries/:itineraryId/attractions', authenticate, (req, res) => {
+app.get('/api/itineraries/:itineraryId/attractions', passport.authenticate('jwt', { session: false }), (req, res) => {
     const { itineraryId } = req.params;
 
     itineraryService.getItinerariesByUser(req.user._id) // confirm ownership
