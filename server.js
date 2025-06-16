@@ -4,7 +4,6 @@ const cors = require("cors");
 const dotenv = require("dotenv");
 dotenv.config();
 const userService = require("./user-service.js");
-const itineraryService = require("./itinerary-service.js");
 const jwt = require('jsonwebtoken');
 const passport = require('passport');
 const passportJWT = require('passport-jwt');
@@ -12,14 +11,7 @@ const passportJWT = require('passport-jwt');
 const HTTP_PORT = process.env.PORT || 8080;
 
 app.use(express.json());
-app.use(cors({
-    origin: [
-        "http://localhost:3000",
-        "https://prj-566-ncc-team3-riu86sa9r-ashwin-bns-projects.vercel.app"
-    ],
-    credentials: true
-}));
-app.options('*', cors());
+app.use(cors());
 
 // JSON Web Token Setup
 let ExtractJwt = passportJWT.ExtractJwt;
@@ -45,28 +37,27 @@ let strategy = new JwtStrategy(jwtOptions, function (jwt_payload, next) {
 
 passport.use(strategy);
 app.use(passport.initialize());
-passport.authenticate('jwt', { session: false })
 
 app.post("/api/user/register", (req, res) => {
     userService.registerUser(req.body)
-    .then((msg) => {
-        res.json({ "message": msg });
-    }).catch((msg) => {
+        .then((msg) => {
+            res.json({ "message": msg });
+        }).catch((msg) => {
         res.status(422).json({ "message": msg });
     });
-}); 
+});
 
 app.post("/api/user/login", (req, res) => {
     userService.checkUser(req.body)
-    .then((user) => {
-        const payload = { 
-            _id: user._id,
-            email: user.email
-        };
+        .then((user) => {
+            const payload = {
+                _id: user._id,
+                email: user.email
+            };
 
-        const token = jwt.sign(payload, process.env.JWT_SECRET);
-        
-         const userData = {
+            const token = jwt.sign(payload, process.env.JWT_SECRET);
+
+            const userData = {
                 _id: user._id,
                 email: user.email,
                 userName: user.userName,
@@ -75,15 +66,14 @@ app.post("/api/user/login", (req, res) => {
                 friends: user.friends
             };
 
-        res.json({ "message": "login successful", 
-            "token": token,
-            "user": userData
-         });
-    }).catch(msg => {
+            res.json({ "message": "login successful",
+                "token": token,
+                "user": userData
+            });
+        }).catch(msg => {
         res.status(422).json({ "message": msg });
     });
 });
-
 
 // ========== ITINERARY ROUTES ========== //
 
@@ -188,17 +178,11 @@ app.get('/api/itineraries/:itineraryId/attractions', authenticate, (req, res) =>
         .catch(err => res.status(500).json({ message: "Failed to verify ownership", error: err }));
 });
 
-
-Promise.all([
-    userService.connect(),
-    itineraryService.connect()
-])
+userService.connect()
     .then(() => {
-        app.listen(HTTP_PORT, () => {
-            console.log("API listening on: " + HTTP_PORT);
-        });
+        app.listen(HTTP_PORT, () => { console.log("API listening on: " + HTTP_PORT) });
     })
     .catch((err) => {
-        console.error("Unable to start the server:", err);
+        console.log("unable to start the server: " + err);
         process.exit();
     });
