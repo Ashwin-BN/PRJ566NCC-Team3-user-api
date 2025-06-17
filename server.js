@@ -4,6 +4,7 @@ const cors = require("cors");
 const dotenv = require("dotenv");
 dotenv.config();
 const userService = require("./user-service.js");
+const itineraryService = require("./itinerary-service");
 const jwt = require('jsonwebtoken');
 const passport = require('passport');
 const passportJWT = require('passport-jwt');
@@ -178,11 +179,16 @@ app.get('/api/itineraries/:itineraryId/attractions', passport.authenticate('jwt'
         .catch(err => res.status(500).json({ message: "Failed to verify ownership", error: err }));
 });
 
-userService.connect()
+Promise.all([
+    userService.connect(),
+    itineraryService.connect()
+])
     .then(() => {
-        app.listen(HTTP_PORT, () => { console.log("API listening on: " + HTTP_PORT) });
+        app.listen(HTTP_PORT, () => {
+            console.log("API listening on: " + HTTP_PORT);
+        });
     })
     .catch((err) => {
-        console.log("unable to start the server: " + err);
+        console.error("Unable to start the server:", err);
         process.exit();
     });
