@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const Itinerary = require('./models/Itinerary');
+const Attraction = require('./models/Attraction');
 
 let mongoDBConnectionString = process.env.MONGO_URL;
 
@@ -32,10 +33,16 @@ module.exports.deleteItinerary = function (itineraryId, userId) {
     return Itinerary.findOneAndDelete({ _id: itineraryId, userId }).exec();
 };
 
-module.exports.addAttraction = function (itineraryId, attraction) {
+module.exports.addAttraction = async function (itineraryId, attractionData) {
+    let attraction = await Attraction.findOne({ id: attractionData.id });
+
+    if (!attraction) {
+        attraction = await new Attraction(attractionData).save();
+    }
+
     return Itinerary.findOneAndUpdate(
-        { _id: itineraryId, 'attractions.id': { $ne: attraction.id } },
-        { $push: { attractions: attraction } },
+        { _id: itineraryId, attractions: { $ne: attraction._id } },
+        { $push: { attractions: attraction._id } },
         { new: true }
     ).exec();
 };
