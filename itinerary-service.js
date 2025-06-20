@@ -28,8 +28,8 @@ module.exports.updateItinerary = function (itineraryId, updatedData) {
     return Itinerary.findByIdAndUpdate(itineraryId, updatedData, { new: true }).exec();
 };
 
-module.exports.deleteItinerary = function (itineraryId) {
-    return Itinerary.findByIdAndDelete(itineraryId).exec();
+module.exports.deleteItinerary = function (itineraryId, userId) {
+    return Itinerary.findOneAndDelete({ _id: itineraryId, userId }).exec();
 };
 
 module.exports.addAttraction = function (itineraryId, attraction) {

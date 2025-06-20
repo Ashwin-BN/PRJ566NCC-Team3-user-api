@@ -107,11 +107,19 @@ app.put('/api/itineraries/:id', passport.authenticate('jwt', { session: false })
         .catch(err => res.status(500).json({ message: err }));
 });
 
-// Delete an itinerary
-app.delete('/api/itineraries/:id', passport.authenticate('jwt', { session: false }), (req, res) => {
-    itineraryService.deleteItinerary(req.params.id)
-        .then(() => res.json({ message: 'Itinerary deleted' }))
-        .catch(err => res.status(500).json({ message: err }));
+app.delete('/api/itineraries/:id', passport.authenticate('jwt', { session: false }), async (req, res) => {
+    try {
+        const userId = req.user._id;
+        const deleted = await itineraryService.deleteItinerary(req.params.id, userId);
+
+        if (!deleted) {
+            return res.status(404).json({ message: 'Itinerary not found or unauthorized' });
+        }
+
+        res.json({ message: 'Itinerary deleted' });
+    } catch (err) {
+        res.status(500).json({ message: err.message || 'Server error' });
+    }
 });
 
 // Add attraction to itinerary
