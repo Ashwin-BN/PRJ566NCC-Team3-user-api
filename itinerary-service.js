@@ -22,7 +22,9 @@ module.exports.createItinerary = function (data) {
 };
 
 module.exports.getItinerariesByUser = function (userId) {
-    return Itinerary.find({ userId }).exec();
+    return Itinerary.find({ userId })
+        .populate('attractions')
+        .exec();
 };
 
 module.exports.updateItinerary = function (itineraryId, updatedData) {
