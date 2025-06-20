@@ -123,20 +123,6 @@ app.delete('/api/itineraries/:id', passport.authenticate('jwt', { session: false
     }
 });
 
-// Add attraction to itinerary
-app.post('/api/itineraries/:id/attractions', passport.authenticate('jwt', { session: false }), (req, res) => {
-    itineraryService.addAttraction(req.params.id, req.body)
-        .then(updated => res.json(updated))
-        .catch(err => res.status(500).json({ message: err }));
-});
-
-// Remove attraction from itinerary
-app.delete('/api/itineraries/:id/attractions/:attractionId', passport.authenticate('jwt', { session: false }), (req, res) => {
-    itineraryService.removeAttraction(req.params.id, req.params.attractionId)
-        .then(updated => res.json(updated))
-        .catch(err => res.status(500).json({ message: err }));
-});
-
 // ========== ATTRACTION ROUTES ========== //
 
 // Add a new attraction to an itinerary
