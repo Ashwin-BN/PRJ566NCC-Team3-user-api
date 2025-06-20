@@ -5,6 +5,7 @@ const dotenv = require("dotenv");
 dotenv.config();
 const userService = require("./user-service.js");
 const itineraryService = require("./itinerary-service");
+const savedAttractionService = require('./savedAttraction-service');
 const jwt = require('jsonwebtoken');
 const passport = require('passport');
 const passportJWT = require('passport-jwt');
@@ -187,9 +188,42 @@ app.get('/api/itineraries/:itineraryId/attractions', passport.authenticate('jwt'
         .catch(err => res.status(500).json({ message: "Failed to verify ownership", error: err }));
 });
 
+// ========== SAVED ATTRACTIONS ROUTES ========== //
+
+// GET all saved attractions for logged-in user
+app.get('/api/saved-attractions', passport.authenticate('jwt', { session: false }), async (req, res) => {
+    try {
+        const results = await savedAttractionService.getSavedAttractionsByUser(req.user._id);
+        res.json(results);
+    } catch (err) {
+        res.status(500).json({ message: 'Failed to fetch saved attractions', error: err });
+    }
+});
+
+// POST save an attraction
+app.post('/api/saved-attractions', passport.authenticate('jwt', { session: false }), async (req, res) => {
+    try {
+        const msg = await savedAttractionService.saveAttraction(req.user._id, req.body);
+        res.status(201).json({ message: msg });
+    } catch (err) {
+        res.status(500).json({ message: err });
+    }
+});
+
+// DELETE a saved attraction
+app.delete('/api/saved-attractions/:id', passport.authenticate('jwt', { session: false }), async (req, res) => {
+    try {
+        await savedAttractionService.removeSavedAttraction(req.user._id, req.params.id);
+        res.json({ message: 'Attraction removed' });
+    } catch (err) {
+        res.status(500).json({ message: 'Failed to remove attraction', error: err });
+    }
+});
+
 Promise.all([
     userService.connect(),
-    itineraryService.connect()
+    itineraryService.connect(),
+    savedAttractionService.connect()
 ])
     .then(() => {
         app.listen(HTTP_PORT, () => {
