@@ -9,4 +9,4 @@ const attractionSchema = new mongoose.Schema({
     id: String
 });
 
-module.exports = attractionSchema;
+module.exports = mongoose.models.Attraction || mongoose.model('Attraction', attractionSchema);
