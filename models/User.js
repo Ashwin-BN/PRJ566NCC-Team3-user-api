@@ -8,7 +8,10 @@ const userSchema = new Schema({
     },
     password: String,
     userName: String,
-    profilePicture: String,
+    profilePicture: {
+        type: String,
+        default: '',
+    },
     currentLocation: {
         city: String,
         country: String,
