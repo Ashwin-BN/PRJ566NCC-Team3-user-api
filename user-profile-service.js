@@ -1,11 +1,10 @@
-const mongoose = require('mongoose');
-const User = mongoose.model('users');
+const User = require('./models/User');
 
 // Update profile info (name, pfp, location, visited places, etc.)
 module.exports.updateUserProfile = async function (userId, updates) {
     try {
         return await User.findOneAndUpdate(
-            {userId},
+            {_id: userId},
             {$set: updates},
             {new: true}
         );
