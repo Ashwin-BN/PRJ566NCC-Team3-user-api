@@ -7,10 +7,21 @@ const userSchema = new Schema({
         unique: true
     },
     password: String,
+    userName: String,
+    profilePicture: String,
+    currentLocation: {
+        city: String,
+        country: String,
+    },
+    visitedCities: [
+        {
+            city: String,
+            countryCode: String,
+            countryName: String,
+        }
+    ],
     favorites: [{ type: Schema.Types.ObjectId, ref: 'Attraction' }],
     itineraries: [{ type: Schema.Types.ObjectId, ref: 'Itinerary' }],
-    userName: String,
-    friends: [String],
 });
 
 module.exports = mongoose.model('User', userSchema);

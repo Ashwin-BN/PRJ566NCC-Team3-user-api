@@ -4,6 +4,7 @@ const cors = require("cors");
 const dotenv = require("dotenv");
 dotenv.config();
 const userService = require("./user-service.js");
+const userProfileService = require("./user-profile-service.js");
 const itineraryService = require("./itinerary-service");
 const savedAttractionService = require('./savedAttraction-service');
 const jwt = require('jsonwebtoken');
@@ -75,6 +76,28 @@ app.post("/api/user/login", (req, res) => {
         }).catch(msg => {
         res.status(422).json({ "message": msg });
     });
+});
+
+// GET current user profile
+app.get("/api/user/profile", passport.authenticate("jwt", { session: false }), async (req, res) => {
+    try {
+        const user = await userProfileService.getUserProfile(req.user._id);
+        if (!user) return res.status(404).json({ message: "User not found" });
+        res.json(user);
+    } catch (err) {
+        res.status(500).json({ message: "Failed to fetch profile", error: err });
+    }
+});
+
+// PUT update user profile
+app.put("/api/user/profile", passport.authenticate("jwt", { session: false }), async (req, res) => {
+    try {
+        const updated = await userProfileService.updateUserProfile(req.user._id, req.body);
+        const user = await
+        res.json({ message: "Profile updated", user: updated });
+    } catch (err) {
+        res.status(500).json({ message: "Failed to update profile", error: err });
+    }
 });
 
 // ========== ITINERARY ROUTES ========== //
