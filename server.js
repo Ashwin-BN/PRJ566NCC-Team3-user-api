@@ -393,6 +393,21 @@ app.post('/api/itineraries/:id/share', async (req, res) => {
         res.status(500).json({ message: 'Failed to share itinerary' });
     }
 });
+
+// Get a public itinerary by ID (no auth)
+app.get('/api/itineraries/shared/:id', async (req, res) => {
+  try {
+    const itinerary = await itineraryService.getItineraryById(req.params.id);
+    if (!itinerary || !itinerary.public) {
+      return res.status(404).json({ message: "Public itinerary not found" });
+    }
+    res.json(itinerary);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Failed to fetch itinerary" });
+  }
+});
+
   
 
 
