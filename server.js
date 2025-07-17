@@ -12,13 +12,15 @@ const jwt = require('jsonwebtoken');
 const passport = require('passport');
 const reviewRoutes = require('./routes/reviewRoutes');
 const passportJWT = require('passport-jwt');
-
+const syncController = require('./controllers/syncController.js');
 const HTTP_PORT = process.env.PORT || 8080;
 
 app.use(express.json());
 app.use(cors());
 app.use('/api/reviews', reviewRoutes);
 
+//app.use('/user', require('./routes/userRoutes'));
+//app.use('/itineraries', require('./routes/itineraryRoutes'));
 
 // JSON Web Token Setup
 let ExtractJwt = passportJWT.ExtractJwt;
@@ -131,13 +133,27 @@ app.post('/api/itineraries', passport.authenticate('jwt', { session: false }), (
         .then(msg => res.json({ message: msg }))
         .catch(err => res.status(500).json({ message: err }));
 });
+app.post('/api/itineraries/:id/sync', syncController.syncItinerary);
 
 // Get all itineraries for logged-in user
-app.get('/api/itineraries', passport.authenticate('jwt', { session: false }), (req, res) => {
-    itineraryService.getItinerariesByUser(req.user._id)
-        .then(itins => res.json(itins))
-        .catch(err => res.status(500).json({ message: err }));
+app.get('/api/itineraries', passport.authenticate('jwt', { session: false }), async (req, res) => {
+    try {
+        const itins = await itineraryService.getItinerariesByUser(req.user._id);
+        const enriched = itins.map(itin => ({
+            _id: itin._id,
+            name: itin.name,
+            startDate: itin.startDate,
+            endDate: itin.endDate,
+            destinations: itin.destinations,
+            attractions: itin.attractions,
+            isSynced: itin.isSynced || false  // <-- ✅ Add sync status
+        }));
+        res.json(enriched);
+    } catch (err) {
+        res.status(500).json({ message: "Failed to load itineraries", error: err.message });
+    }
 });
+
 
 // Update an itinerary
 app.put('/api/itineraries/:id', passport.authenticate('jwt', { session: false }), (req, res) => {
