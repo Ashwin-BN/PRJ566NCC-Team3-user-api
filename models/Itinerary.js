@@ -11,7 +11,8 @@ const itinerarySchema = new mongoose.Schema({
     from: Date,
     to: Date,
     attractions: [{type: Schema.Types.ObjectId, ref: 'Attraction'}],
-    collaborators: [{ type: Schema.Types.ObjectId, ref: 'User' }]
+    collaborators: [{ type: Schema.Types.ObjectId, ref: 'User' }],
+    public: { type: Boolean, default: false },
 });
 
 module.exports = mongoose.models.Itinerary || mongoose.model('Itinerary', itinerarySchema);
