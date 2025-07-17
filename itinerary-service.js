@@ -1,6 +1,7 @@
 const mongoose = require('mongoose');
 const Itinerary = require('./models/Itinerary');
 const Attraction = require('./models/Attraction');
+const User = require('./models/User');
 
 let mongoDBConnectionString = process.env.MONGO_URL;
 
@@ -53,6 +54,40 @@ module.exports.removeAttraction = function (itineraryId, attractionId) {
     return Itinerary.findByIdAndUpdate(
         itineraryId,
         { $pull: { attractions: { id: attractionId } } },
+        { new: true }
+    ).exec();
+};
+
+module.exports.getItineraryById = function (id) {
+    return Itinerary.findById(id)
+        .populate('collaborators')
+        .populate('attractions')
+        .exec();
+};
+
+module.exports.getItinerariesByUser = function (userId) {
+    return Itinerary.find({ userId })
+        .populate('collaborators')
+        .populate('attractions')
+        .exec();
+};
+
+module.exports.getUserByEmail = function (email) {
+    return User.findOne({ email }).exec();
+};
+
+module.exports.addCollaborator = function (itineraryId, userId) {
+    return Itinerary.findByIdAndUpdate(
+        itineraryId,
+        { $addToSet: { collaborators: userId } }, // Prevent duplicates
+        { new: true }
+    ).exec();
+};
+
+module.exports.removeCollaborator = function (itineraryId, userId) {
+    return Itinerary.findByIdAndUpdate(
+        itineraryId,
+        { $pull: { collaborators: userId } },
         { new: true }
     ).exec();
 };

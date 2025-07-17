@@ -58,7 +58,19 @@ app.post("/api/user/login", (req, res) => {
                 email: user.email
             };
 
-            const token = jwt.sign(payload, process.env.JWT_SECRET);
+            const token = jwt.sign(
+  {
+    ...payload,
+    iat: Math.floor(Date.now() / 1000),        // optional: adds issued time
+    jti: Math.random().toString(36).substring(2), // optional: adds random ID
+  },
+  process.env.JWT_SECRET,
+  { expiresIn: "1h" } // token will expire in 1 hour
+);
+
+console.log("User from checkUser:", user);
+console.log("Payload before signing:", payload);
+console.log("Generated token:", token);
 
             const userData = {
                 _id: user._id,
@@ -145,6 +157,97 @@ app.delete('/api/itineraries/:id', passport.authenticate('jwt', { session: false
         res.status(500).json({ message: err.message || 'Server error' });
     }
 });
+
+// Add collaborator to itinerary
+app.post('/api/itineraries/:id/collaborators', passport.authenticate('jwt', { session: false }), async (req, res) => {
+    const itineraryId = req.params.id;
+    const { collaboratorEmail } = req.body;
+
+    try {
+        const itinerary = await itineraryService.getItineraryById(itineraryId);
+
+        if (!itinerary) return res.status(404).json({ message: "Itinerary not found" });
+
+        if (String(itinerary.userId) !== String(req.user._id)) {
+            return res.status(403).json({ message: "Only the owner can add collaborators" });
+        }
+
+        const userToAdd = await itineraryService.getUserByEmail(collaboratorEmail);
+        if (!userToAdd) return res.status(404).json({ message: "User not found" });
+
+        const alreadyAdded = itinerary.collaborators.some(id => id.equals(userToAdd._id));
+        if (alreadyAdded) return res.status(400).json({ message: "User already a collaborator" });
+
+        const updated = await itineraryService.addCollaborator(itineraryId, userToAdd._id);
+        res.json({ message: "Collaborator added", itinerary: updated });
+    } catch (err) {
+        res.status(500).json({ message: "Server error", error: err.message });
+    }
+});
+
+app.delete('/api/itineraries/:id/collaborators/:userId', passport.authenticate('jwt', { session: false }), async (req, res) => {
+    const { id, userId } = req.params;
+
+    try {
+        const itinerary = await itineraryService.getItineraryById(id);
+        if (!itinerary) return res.status(404).json({ message: "Itinerary not found" });
+
+        if (String(itinerary.userId) !== String(req.user._id)) {
+            return res.status(403).json({ message: "Only the owner can remove collaborators" });
+        }
+
+        const updated = await itineraryService.removeCollaborator(id, userId);
+        res.json({ message: "Collaborator removed", itinerary: updated });
+    } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
+});
+
+app.put('/api/itineraries/:id', passport.authenticate('jwt', { session: false }), async (req, res) => {
+    const itineraryId = req.params.id;
+    const userId = req.user._id;
+
+    try {
+        const itinerary = await itineraryService.getItineraryById(itineraryId);
+        if (!itinerary) return res.status(404).json({ message: "Itinerary not found" });
+
+        const isOwner = String(itinerary.userId) === String(userId);
+        const isCollaborator = itinerary.collaborators.some(id => id.equals(userId));
+
+        if (!isOwner && !isCollaborator) {
+            return res.status(403).json({ message: "You are not authorized to edit this itinerary" });
+        }
+
+        const updated = await itineraryService.updateItinerary(itineraryId, req.body);
+        res.json(updated);
+    } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
+});
+
+// Get one itinerary by ID
+app.get('/api/itineraries/:id', passport.authenticate('jwt', { session: false }), async (req, res) => {
+    try {
+        const itinerary = await itineraryService.getItineraryById(req.params.id);
+        if (!itinerary) {
+            return res.status(404).json({ message: "Itinerary not found" });
+        }
+
+        const userId = req.user._id;
+        const isOwner = String(itinerary.userId) === String(userId);
+        const isCollaborator = itinerary.collaborators.some(id => id.equals(userId));
+
+        if (!isOwner && !isCollaborator) {
+            return res.status(403).json({ message: "You are not authorized to view this itinerary" });
+        }
+
+        res.json(itinerary);
+    } catch (err) {
+        res.status(500).json({ message: "Failed to fetch itinerary", error: err.message });
+    }
+});
+
+
 
 // ========== ATTRACTION ROUTES ========== //
 
