@@ -7,14 +7,18 @@ const userService = require("./user-service.js");
 const userProfileService = require("./user-profile-service.js");
 const itineraryService = require("./itinerary-service");
 const savedAttractionService = require('./savedAttraction-service');
+const reviewService = require('./review-service');
 const jwt = require('jsonwebtoken');
 const passport = require('passport');
+const reviewRoutes = require('./routes/reviewRoutes');
 const passportJWT = require('passport-jwt');
 
 const HTTP_PORT = process.env.PORT || 8080;
 
 app.use(express.json());
 app.use(cors());
+app.use('/api/reviews', reviewRoutes);
+
 
 // JSON Web Token Setup
 let ExtractJwt = passportJWT.ExtractJwt;
@@ -331,6 +335,46 @@ app.delete('/api/saved-attractions/:id', passport.authenticate('jwt', { session:
     }
 });
 
+// ========== REVIEWS ROUTES ========== //
+
+// POST create a review
+app.post('/api/reviews', passport.authenticate('jwt', { session: false }), async (req, res) => {
+    try {
+        const savedReview = await reviewService.addReview(req.user._id, req.body);
+        res.status(201).json(savedReview);
+    } catch (err) {
+        console.error("Error adding review:", err);
+        res.status(400).json({ message: err?.toString() || "Unknown error" });
+    }
+});
+
+
+// GET all reviews for an attraction
+app.get('/api/reviews/:attractionId', async (req, res) => {
+    try {
+        const reviews = await reviewService.getReviewsForAttraction(req.params.attractionId);
+        res.json(reviews);
+    } catch (err) {
+        res.status(500).json({ message: "Failed to fetch reviews", error: err });
+    }
+});
+
+// DELETE a review
+app.delete('/api/reviews/:reviewId', passport.authenticate('jwt', { session: false }), async (req, res) => {
+    try {
+        const deleted = await reviewService.deleteReview(req.params.reviewId, req.user._id);
+      if (!deleted) {
+        return res.status(404).json({ message: 'Review not found or unauthorized' });
+      }
+      res.json({ message: 'Review deleted' });
+    } catch (err) {
+      console.error('Error deleting review:', err);
+      res.status(500).json({ message: 'Failed to delete review' });
+    }
+  });
+  
+
+
 Promise.all([
     userService.connect(),
     itineraryService.connect(),
@@ -345,3 +389,4 @@ Promise.all([
         console.error("Unable to start the server:", err);
         process.exit();
     });
+

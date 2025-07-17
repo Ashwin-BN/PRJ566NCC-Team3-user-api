@@ -25,6 +25,13 @@ const userSchema = new Schema({
     ],
     favorites: [{ type: Schema.Types.ObjectId, ref: 'Attraction' }],
     itineraries: [{ type: Schema.Types.ObjectId, ref: 'Itinerary' }],
+<<<<<<< Updated upstream
+=======
+    userName: String,
+    friends: [String],
+    bio: { type: String, default: "" },  
+    country: { type: String, default: "" },
+>>>>>>> Stashed changes
 });
 
 module.exports = mongoose.model('User', userSchema);
