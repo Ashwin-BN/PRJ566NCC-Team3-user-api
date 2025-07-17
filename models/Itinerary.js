@@ -10,7 +10,8 @@ const itinerarySchema = new mongoose.Schema({
     name: { type: String, required: true },
     from: Date,
     to: Date,
-    attractions: [{type: Schema.Types.ObjectId, ref: 'Attraction'}]
+    attractions: [{type: Schema.Types.ObjectId, ref: 'Attraction'}],
+    public: { type: Boolean, default: false },
 });
 
 module.exports = mongoose.models.Itinerary || mongoose.model('Itinerary', itinerarySchema);

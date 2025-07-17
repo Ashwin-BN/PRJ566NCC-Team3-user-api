@@ -93,7 +93,6 @@ app.get("/api/user/profile", passport.authenticate("jwt", { session: false }), a
 app.put("/api/user/profile", passport.authenticate("jwt", { session: false }), async (req, res) => {
     try {
         const updated = await userProfileService.updateUserProfile(req.user._id, req.body);
-        const user = await
         res.json({ message: "Profile updated", user: updated });
     } catch (err) {
         res.status(500).json({ message: "Failed to update profile", error: err });
