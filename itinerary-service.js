@@ -66,7 +66,12 @@ module.exports.getItineraryById = function (id) {
 };
 
 module.exports.getItinerariesByUser = function (userId) {
-    return Itinerary.find({ userId })
+    return Itinerary.find({
+        $or: [
+            { userId },
+            { collaborators: userId }
+        ]
+    })
         .populate('collaborators')
         .populate('attractions')
         .exec();

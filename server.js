@@ -405,6 +405,42 @@ app.delete('/api/reviews/:reviewId', passport.authenticate('jwt', { session: fal
       res.status(500).json({ message: 'Failed to delete review' });
     }
   });
+
+  // ========== Share ROUTES ========== //
+  // share itinerary
+app.post('/api/itineraries/:id/share', async (req, res) => {
+    try {
+        const itineraryId = req.params.id;
+
+        // Update the itinerary's 'public' flag to true
+        const updatedItinerary = await itineraryService.updateItinerary(itineraryId, { public: true });
+
+        if (!updatedItinerary) {
+        return res.status(404).json({ message: 'Itinerary not found' });
+        }
+
+        // Return the itinerary _id so frontend can build the share URL
+        res.json({ itineraryId: updatedItinerary._id });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ message: 'Failed to share itinerary' });
+    }
+});
+
+// Get a public itinerary by ID (no auth)
+app.get('/api/itineraries/shared/:id', async (req, res) => {
+  try {
+    const itinerary = await itineraryService.getItineraryById(req.params.id);
+    if (!itinerary || !itinerary.public) {
+      return res.status(404).json({ message: "Public itinerary not found" });
+    }
+    res.json(itinerary);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Failed to fetch itinerary" });
+  }
+});
+
   
 
 
