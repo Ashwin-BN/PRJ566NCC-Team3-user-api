@@ -157,6 +157,7 @@ app.get('/api/itineraries', passport.authenticate('jwt', { session: false }), (r
         .then(itins => {
             const sanitized = itins.map(itin => ({
                 _id: itin._id,
+                userId: itin.userId,
                 name: itin.name,
                 from: itin.from,
                 to: itin.to,
