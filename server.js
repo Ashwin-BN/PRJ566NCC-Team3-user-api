@@ -3,22 +3,39 @@ const app = express();
 const cors = require("cors");
 const dotenv = require("dotenv");
 dotenv.config();
+
+const passport = require('passport');
+const passportJWT = require('passport-jwt');
+const jwt = require('jsonwebtoken');
+
+// Services
 const userService = require("./user-service.js");
 const userProfileService = require("./user-profile-service.js");
 const itineraryService = require("./itinerary-service");
 const savedAttractionService = require('./savedAttraction-service');
 const reviewService = require('./review-service');
-const jwt = require('jsonwebtoken');
-const passport = require('passport');
+
+// Route files
 const reviewRoutes = require('./routes/reviewRoutes');
-const passportJWT = require('passport-jwt');
-
+const itineraryRoutes = require('./routes/itineraryRoutes');
+const syncRoutes = require('./routes/syncRoutes');
 const HTTP_PORT = process.env.PORT || 8080;
-
-app.use(express.json());
+// Middleware
 app.use(cors());
-app.use('/api/reviews', reviewRoutes);
+app.use(express.json());
 
+// Mount routes
+app.use('/api/reviews', reviewRoutes);
+app.use('/api', itineraryRoutes); // handles /itineraries/:id/sync and others
+app.use('/api', syncRoutes);
+
+// Start server
+
+
+
+
+//app.use('/user', require('./routes/userRoutes'));
+//app.use('/itineraries', require('./routes/itineraryRoutes'));
 
 // JSON Web Token Setup
 let ExtractJwt = passportJWT.ExtractJwt;
@@ -44,6 +61,7 @@ let strategy = new JwtStrategy(jwtOptions, function (jwt_payload, next) {
 
 passport.use(strategy);
 app.use(passport.initialize());
+app.use('/api/itineraries', itineraryRoutes);
 
 app.post("/api/user/register", (req, res) => {
     userService.registerUser(req.body)
@@ -132,12 +150,27 @@ app.post('/api/itineraries', passport.authenticate('jwt', { session: false }), (
         .catch(err => res.status(500).json({ message: err }));
 });
 
+
 // Get all itineraries for logged-in user
 app.get('/api/itineraries', passport.authenticate('jwt', { session: false }), (req, res) => {
     itineraryService.getItinerariesByUser(req.user._id)
-        .then(itins => res.json(itins))
+        .then(itins => {
+            const sanitized = itins.map(itin => ({
+                _id: itin._id,
+                name: itin.name,
+                from: itin.from,
+                to: itin.to,
+                attractions: itin.attractions,
+                public: itin.public,
+                isSynced: itin.isSynced || false,
+                calendarType: itin.calendarType || null
+            }));
+            res.json(sanitized);
+        })
         .catch(err => res.status(500).json({ message: err }));
 });
+
+
 
 // Update an itinerary
 app.put('/api/itineraries/:id', passport.authenticate('jwt', { session: false }), (req, res) => {
