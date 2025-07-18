@@ -152,24 +152,33 @@ app.post('/api/itineraries', passport.authenticate('jwt', { session: false }), (
 
 
 // Get all itineraries for logged-in user
-app.get('/api/itineraries', passport.authenticate('jwt', { session: false }), (req, res) => {
-    itineraryService.getItinerariesByUser(req.user._id)
-        .then(itins => {
-            const sanitized = itins.map(itin => ({
-                _id: itin._id,
-                userId: itin.userId,
-                name: itin.name,
-                from: itin.from,
-                to: itin.to,
-                attractions: itin.attractions,
-                public: itin.public,
-                isSynced: itin.isSynced || false,
-                calendarType: itin.calendarType || null
-            }));
-            res.json(sanitized);
-        })
-        .catch(err => res.status(500).json({ message: err }));
+app.get('/api/itineraries', passport.authenticate('jwt', { session: false }), async (req, res) => {
+    try {
+        const itineraries = await itineraryService.getItinerariesByUser(req.user._id);
+
+        // Populate collaborators
+        const populatedItineraries = await Promise.all(itineraries.map(async (itin) => {
+            const populated = await itin.populate('collaborators', '_id userName email');
+            return {
+                _id: populated._id,
+                userId: populated.userId,
+                name: populated.name,
+                from: populated.from,
+                to: populated.to,
+                attractions: populated.attractions,
+                public: populated.public,
+                isSynced: populated.isSynced || false,
+                calendarType: populated.calendarType || null,
+                collaborators: populated.collaborators  // 👈 now full user objects
+            };
+        }));
+
+        res.json(populatedItineraries);
+    } catch (err) {
+        res.status(500).json({ message: err.message || err });
+    }
 });
+
 
 
 
@@ -183,13 +192,30 @@ app.put('/api/itineraries/:id', passport.authenticate('jwt', { session: false })
 app.delete('/api/itineraries/:id', passport.authenticate('jwt', { session: false }), async (req, res) => {
     try {
         const userId = req.user._id;
-        const deleted = await itineraryService.deleteItinerary(req.params.id, userId);
+        const itineraryId = req.params.id;
+        const itinerary = await itineraryService.getItineraryById(itineraryId);
 
-        if (!deleted) {
-            return res.status(404).json({ message: 'Itinerary not found or unauthorized' });
+        if (!itinerary) {
+            return res.status(404).json({ message: 'Itinerary not found' });
         }
 
-        res.json({ message: 'Itinerary deleted' });
+        const isOwner = String(itinerary.userId) === String(userId);
+        const isCollaborator = itinerary.collaborators.some(id => id.equals(userId));
+
+        if (isOwner) {
+            // Owner deletes itinerary
+            const deleted = await itineraryService.deleteItinerary(itineraryId, userId);
+            if (!deleted) {
+                return res.status(404).json({ message: 'Itinerary not found or unauthorized' });
+            }
+            return res.json({ message: 'Itinerary deleted' });
+        } else if (isCollaborator) {
+            // Collaborator removes self from collaborators list
+            const updated = await itineraryService.removeCollaborator(itineraryId, userId);
+            return res.json({ message: 'Removed from collaborators', itinerary: updated });
+        } else {
+            return res.status(403).json({ message: 'You are not authorized to delete this itinerary' });
+        }
     } catch (err) {
         res.status(500).json({ message: err.message || 'Server error' });
     }
