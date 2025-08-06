@@ -3,22 +3,39 @@ const app = express();
 const cors = require("cors");
 const dotenv = require("dotenv");
 dotenv.config();
+
+const passport = require('passport');
+const passportJWT = require('passport-jwt');
+const jwt = require('jsonwebtoken');
+
+// Services
 const userService = require("./user-service.js");
 const userProfileService = require("./user-profile-service.js");
 const itineraryService = require("./itinerary-service");
 const savedAttractionService = require('./savedAttraction-service');
 const reviewService = require('./review-service');
-const jwt = require('jsonwebtoken');
-const passport = require('passport');
+
+// Route files
 const reviewRoutes = require('./routes/reviewRoutes');
-const passportJWT = require('passport-jwt');
-
+const itineraryRoutes = require('./routes/itineraryRoutes');
+const syncRoutes = require('./routes/syncRoutes');
 const HTTP_PORT = process.env.PORT || 8080;
-
-app.use(express.json());
+// Middleware
 app.use(cors());
-app.use('/api/reviews', reviewRoutes);
+app.use(express.json());
 
+// Mount routes
+app.use('/api/reviews', reviewRoutes);
+app.use('/api', itineraryRoutes); // handles /itineraries/:id/sync and others
+app.use('/api', syncRoutes);
+
+// Start server
+
+
+
+
+//app.use('/user', require('./routes/userRoutes'));
+//app.use('/itineraries', require('./routes/itineraryRoutes'));
 
 // JSON Web Token Setup
 let ExtractJwt = passportJWT.ExtractJwt;
@@ -44,6 +61,7 @@ let strategy = new JwtStrategy(jwtOptions, function (jwt_payload, next) {
 
 passport.use(strategy);
 app.use(passport.initialize());
+app.use('/api/itineraries', itineraryRoutes);
 
 app.post("/api/user/register", (req, res) => {
     userService.registerUser(req.body)
@@ -143,12 +161,37 @@ app.post('/api/itineraries', passport.authenticate('jwt', { session: false }), (
         .catch(err => res.status(500).json({ message: err }));
 });
 
+
 // Get all itineraries for logged-in user
-app.get('/api/itineraries', passport.authenticate('jwt', { session: false }), (req, res) => {
-    itineraryService.getItinerariesByUser(req.user._id)
-        .then(itins => res.json(itins))
-        .catch(err => res.status(500).json({ message: err }));
+app.get('/api/itineraries', passport.authenticate('jwt', { session: false }), async (req, res) => {
+    try {
+        const itineraries = await itineraryService.getItinerariesByUser(req.user._id);
+
+        // Populate collaborators
+        const populatedItineraries = await Promise.all(itineraries.map(async (itin) => {
+            const populated = await itin.populate('collaborators', '_id userName email');
+            return {
+                _id: populated._id,
+                userId: populated.userId,
+                name: populated.name,
+                from: populated.from,
+                to: populated.to,
+                attractions: populated.attractions,
+                public: populated.public,
+                isSynced: populated.isSynced || false,
+                calendarType: populated.calendarType || null,
+                collaborators: populated.collaborators  // 👈 now full user objects
+            };
+        }));
+
+        res.json(populatedItineraries);
+    } catch (err) {
+        res.status(500).json({ message: err.message || err });
+    }
 });
+
+
+
 
 // Update an itinerary
 app.put('/api/itineraries/:id', passport.authenticate('jwt', { session: false }), (req, res) => {
@@ -160,13 +203,30 @@ app.put('/api/itineraries/:id', passport.authenticate('jwt', { session: false })
 app.delete('/api/itineraries/:id', passport.authenticate('jwt', { session: false }), async (req, res) => {
     try {
         const userId = req.user._id;
-        const deleted = await itineraryService.deleteItinerary(req.params.id, userId);
+        const itineraryId = req.params.id;
+        const itinerary = await itineraryService.getItineraryById(itineraryId);
 
-        if (!deleted) {
-            return res.status(404).json({ message: 'Itinerary not found or unauthorized' });
+        if (!itinerary) {
+            return res.status(404).json({ message: 'Itinerary not found' });
         }
 
-        res.json({ message: 'Itinerary deleted' });
+        const isOwner = String(itinerary.userId) === String(userId);
+        const isCollaborator = itinerary.collaborators.some(id => id.equals(userId));
+
+        if (isOwner) {
+            // Owner deletes itinerary
+            const deleted = await itineraryService.deleteItinerary(itineraryId, userId);
+            if (!deleted) {
+                return res.status(404).json({ message: 'Itinerary not found or unauthorized' });
+            }
+            return res.json({ message: 'Itinerary deleted' });
+        } else if (isCollaborator) {
+            // Collaborator removes self from collaborators list
+            const updated = await itineraryService.removeCollaborator(itineraryId, userId);
+            return res.json({ message: 'Removed from collaborators', itinerary: updated });
+        } else {
+            return res.status(403).json({ message: 'You are not authorized to delete this itinerary' });
+        }
     } catch (err) {
         res.status(500).json({ message: err.message || 'Server error' });
     }
