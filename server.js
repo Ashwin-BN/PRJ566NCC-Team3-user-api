@@ -128,6 +128,17 @@ app.get("/api/user/profile", passport.authenticate("jwt", { session: false }), a
     }
 });
 
+// GET public profile by username (no auth)
+app.get("/api/user/profile/username/:username", async (req, res) => {
+    try {
+        const user = await userProfileService.getUserProfileByUsername(req.params.username);
+        if (!user) return res.status(404).json({ message: "User not found" });
+        res.json(user);
+    } catch (err) {
+        res.status(500).json({ message: "Failed to fetch public profile", error: err });
+    }
+});
+
 // PUT update user profile
 app.put("/api/user/profile", passport.authenticate("jwt", { session: false }), async (req, res) => {
     try {

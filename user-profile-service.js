@@ -23,3 +23,15 @@ module.exports.getUserProfile = async function (userId) {
         throw new Error("Failed to retrieve profile: " + err.message);
     }
 };
+
+// Get profile by username (for page load)
+module.exports.getUserProfileByUsername = async function (username) {
+    try {
+        const user = await User.findOne({ userName: new RegExp(`^${username}$`, 'i') })
+            .select("userName profilePicture currentLocation visitedCities bio country");
+        if (!user) throw new Error("User not found");
+        return user;
+    } catch (err) {
+        throw new Error("Failed to retrieve profile: " + err.message);
+    }
+};
