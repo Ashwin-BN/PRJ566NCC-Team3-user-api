@@ -21,7 +21,12 @@ const itineraryRoutes = require('./routes/itineraryRoutes');
 const syncRoutes = require('./routes/syncRoutes');
 const HTTP_PORT = process.env.PORT || 8080;
 // Middleware
-app.use(cors());
+app.use(cors({
+  origin: ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:8080'],
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
 app.use(express.json());
 
 // Mount routes
@@ -120,6 +125,17 @@ app.get("/api/user/profile", passport.authenticate("jwt", { session: false }), a
         res.json(user);
     } catch (err) {
         res.status(500).json({ message: "Failed to fetch profile", error: err });
+    }
+});
+
+// GET public profile by username (no auth)
+app.get("/api/user/profile/username/:username", async (req, res) => {
+    try {
+        const user = await userProfileService.getUserProfileByUsername(req.params.username);
+        if (!user) return res.status(404).json({ message: "User not found" });
+        res.json(user);
+    } catch (err) {
+        res.status(500).json({ message: "Failed to fetch public profile", error: err });
     }
 });
 
