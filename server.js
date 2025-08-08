@@ -26,7 +26,7 @@ app.use(cors({
     'http://localhost:3000',
     'http://localhost:3001',
     'http://localhost:8080',
-    process.env.FRONTEND_ORIGIN
+    'https://prj-566-ncc-team3.vercel.app'
   ],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
