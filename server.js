@@ -21,13 +21,16 @@ const itineraryRoutes = require('./routes/itineraryRoutes');
 const syncRoutes = require('./routes/syncRoutes');
 const HTTP_PORT = process.env.PORT || 8080;
 // Middleware
+const allowedOrigins = process.env.CORS_ORIGINS?.split(',') || [];
+
 app.use(cors({
-  origin: [
-    'http://localhost:3000',
-    'http://localhost:3001',
-    'http://localhost:8080',
-    'https://prj-566-ncc-team3.vercel.app'
-  ],
+  origin: function (origin, callback) {
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS: ' + origin));
+    }
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
