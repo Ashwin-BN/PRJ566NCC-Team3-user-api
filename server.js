@@ -123,14 +123,17 @@ app.get("/api/user/profile", passport.authenticate("jwt", { session: false }), a
     }
 });
 
-// GET public profile by username (no auth)
+// GET profile + public itineraries by username
 app.get("/api/user/profile/username/:username", async (req, res) => {
     try {
         const user = await userProfileService.getUserProfileByUsername(req.params.username);
         if (!user) return res.status(404).json({ message: "User not found" });
-        res.json(user);
+
+        const itineraries = await itineraryService.getPublicItinerariesByUserId(user._id);
+
+        res.json({ user, itineraries });
     } catch (err) {
-        res.status(500).json({ message: "Failed to fetch public profile", error: err });
+        res.status(500).json({ message: "Failed to fetch public profile", error: err.message });
     }
 });
 

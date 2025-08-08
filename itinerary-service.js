@@ -22,12 +22,6 @@ module.exports.createItinerary = function (data) {
     });
 };
 
-module.exports.getItinerariesByUser = function (userId) {
-    return Itinerary.find({ userId })
-        .populate('attractions')
-        .exec();
-};
-
 module.exports.updateItinerary = function (itineraryId, updatedData) {
     return Itinerary.findByIdAndUpdate(itineraryId, updatedData, { new: true }).exec();
 };
@@ -60,7 +54,7 @@ module.exports.removeAttraction = function (itineraryId, attractionId) {
 
 module.exports.getItineraryById = function (id) {
     return Itinerary.findById(id)
-        .populate('collaborators')
+        .populate('collaborators', '_id userName email')
         .populate('attractions')
         .exec();
 };
@@ -74,6 +68,14 @@ module.exports.getItinerariesByUser = function (userId) {
     })
         .populate('collaborators')
         .populate('attractions')
+        .exec();
+};
+
+module.exports.getPublicItinerariesByUserId = function (userId) {
+    return Itinerary.find({ userId, public: true })
+        .populate('attractions')
+        .populate('collaborators', '_id userName email')
+        .lean()
         .exec();
 };
 
