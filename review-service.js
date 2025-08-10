@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const Review = require('./models/Review');
+const Attraction = require('./models/Attraction');
 
 let mongoDBConnectionString = process.env.MONGO_URL;
 
@@ -71,5 +72,56 @@ module.exports.deleteReview = async (reviewId, userId) => {
   if (review.userId.toString() !== userId.toString()) return false;
   await Review.deleteOne({ _id: reviewId });
   return true;
+};
+
+// helper to enrich reviews with attraction doc (name/address/url)
+async function enrichWithAttractions(reviews) {
+  if (!reviews || reviews.length === 0) return reviews;
+
+  try {
+    const ids = [...new Set(reviews.map(r => r.attractionId))];
+    const attractions = await Attraction.find({ id: { $in: ids } })
+        .select('id name address url')
+        .lean();
+    const byId = Object.fromEntries(attractions.map(a => [a.id, a]));
+    return reviews.map(r => ({ ...r, attraction: byId[r.attractionId] || null }));
+  } catch (e) {
+    console.warn('Attraction enrichment failed:', e?.message || e);
+    return reviews; // fail open (don’t crash callers)
+  }
+}
+
+// last N reviews for a user
+module.exports.getRecentReviewsByUser = async function (userId, limit = 5) {
+  const userObjectId = new mongoose.Types.ObjectId(userId);
+
+  const reviews = await Review.find({ userId: userObjectId })
+      .sort({ createdAt: -1 })
+      .limit(limit)
+      .lean();
+
+  return enrichWithAttractions(reviews);
+};
+
+// paginated reviews for a user
+module.exports.getReviewsByUser = async function (userId, { page = 1, limit = 10 } = {}) {
+  const userObjectId = new mongoose.Types.ObjectId(userId);
+
+  const [reviews, total] = await Promise.all([
+    Review.find({ userId: userObjectId })
+        .sort({ createdAt: -1 })
+        .skip((page - 1) * limit)
+        .limit(limit)
+        .lean(),
+    Review.countDocuments({ userId: userObjectId })
+  ]);
+
+  const enriched = await enrichWithAttractions(reviews);
+  return {
+    reviews: enriched,
+    total,
+    page,
+    pageCount: Math.ceil(total / limit)
+  };
 };
 

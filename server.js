@@ -130,9 +130,14 @@ app.get("/api/user/profile", passport.authenticate("jwt", { session: false }), a
     try {
         const user = await userProfileService.getUserProfile(req.user._id);
         if (!user) return res.status(404).json({ message: "User not found" });
-        res.json(user);
+
+        // last 5 reviews for the logged-in user
+        const recentReviews = await reviewService.getRecentReviewsByUser(req.user._id, 5);
+
+        res.json({ user, recentReviews }); // keep itineraries separate (your itinerary routes already exist)
     } catch (err) {
-        res.status(500).json({ message: "Failed to fetch profile", error: err });
+        console.error("[/api/user/profile] ERROR:", err && err.stack ? err.stack : err);
+        res.status(500).json({ message: "Failed to fetch profile", error: err?.message || String(err) });
     }
 });
 
@@ -142,11 +147,16 @@ app.get("/api/user/profile/username/:username", async (req, res) => {
         const user = await userProfileService.getUserProfileByUsername(req.params.username);
         if (!user) return res.status(404).json({ message: "User not found" });
 
+        // public itineraries by that user
         const itineraries = await itineraryService.getPublicItinerariesByUserId(user._id);
 
-        res.json({ user, itineraries });
+        // last 5 public reviews (reviews are not private here, but still by user)
+        const recentReviews = await reviewService.getRecentReviewsByUser(user._id, 5);
+
+        res.json({ user, itineraries, recentReviews });
     } catch (err) {
-        res.status(500).json({ message: "Failed to fetch public profile", error: err.message });
+        console.error("[/api/user/profile/username/:username] ERROR:", err && err.stack ? err.stack : err);
+        res.status(500).json({ message: "Failed to fetch public profile", error: err?.message || String(err) });
     }
 });
 
@@ -459,6 +469,38 @@ app.delete('/api/reviews/:reviewId', passport.authenticate('jwt', { session: fal
       res.status(500).json({ message: 'Failed to delete review' });
     }
   });
+
+// GET all reviews (paginated) for the **current** user (auth)
+app.get("/api/user/reviews", passport.authenticate("jwt", { session: false }), async (req, res) => {
+    try {
+        const page  = Math.max(parseInt(req.query.page, 10)  || 1, 1);
+        const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 10, 1), 50);
+
+        const { reviews, total, pageCount } = await reviewService.getReviewsByUser(req.user._id, { page, limit });
+        res.json({ reviews, total, page, pageCount, limit });
+    } catch (err) {
+        console.error("[/api/user/reviews] ERROR:", err && err.stack ? err.stack : err);
+        res.status(500).json({ message: "Failed to fetch reviews", error: err?.message || String(err) });
+    }
+});
+
+
+// GET all reviews (paginated) for a **public profile** by username (no auth)
+app.get("/api/user/:username/reviews", async (req, res) => {
+    try {
+        const user = await userProfileService.getUserProfileByUsername(req.params.username);
+        if (!user) return res.status(404).json({ message: "User not found" });
+
+        const page  = Math.max(parseInt(req.query.page, 10)  || 1, 1);
+        const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 10, 1), 50);
+
+        const { reviews, total, pageCount } = await reviewService.getReviewsByUser(user._id, { page, limit });
+        res.json({ reviews, total, page, pageCount, limit });
+    } catch (err) {
+        console.error("[/api/user/:username/reviews] ERROR:", err && err.stack ? err.stack : err);
+        res.status(500).json({ message: "Failed to fetch reviews", error: err?.message || String(err) });
+    }
+});
 
   // ========== Share ROUTES ========== //
   // share itinerary
