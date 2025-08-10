@@ -75,19 +75,16 @@ module.exports.deleteReview = async (reviewId, userId) => {
 };
 
 // helper to enrich reviews with attraction doc (name/address/url)
-async function enrichWithAttractions(reviews) {
-  if (!reviews || reviews.length === 0) return reviews;
-
+function decodeHexTitle(maybeHex) {
+  if (!maybeHex || typeof maybeHex !== 'string') return null;
+  // hex-ish? even length & only hex digits
+  if (!/^[0-9a-f]+$/i.test(maybeHex) || maybeHex.length % 2 !== 0) return null;
   try {
-    const ids = [...new Set(reviews.map(r => r.attractionId))];
-    const attractions = await Attraction.find({ id: { $in: ids } })
-        .select('id name address url')
-        .lean();
-    const byId = Object.fromEntries(attractions.map(a => [a.id, a]));
-    return reviews.map(r => ({ ...r, attraction: byId[r.attractionId] || null }));
-  } catch (e) {
-    console.warn('Attraction enrichment failed:', e?.message || e);
-    return reviews; // fail open (don’t crash callers)
+    const s = Buffer.from(maybeHex, 'hex').toString('utf8');
+    // basic sanity: has some printable chars
+    return /[ -~]/.test(s) ? s : null;
+  } catch {
+    return null;
   }
 }
 
@@ -95,20 +92,19 @@ async function enrichWithAttractions(reviews) {
 module.exports.getRecentReviewsByUser = async function (userId, limit = 5) {
   const userObjectId = new mongoose.Types.ObjectId(userId);
 
-  return Review.aggregate([
-    {$match: {userId: userObjectId}},
-    {$sort: {createdAt: -1}},
-    {$limit: limit},
+  const rows = await Review.aggregate([
+    { $match: { userId: userObjectId } },
+    { $sort: { createdAt: -1 } },
+    { $limit: limit },
     {
       $lookup: {
-        from: 'attractions',          // collection name
-        localField: 'attractionId',   // Review.attractionId (string)
-        foreignField: 'id',           // Attraction.id (string)
+        from: 'attractions',
+        localField: 'attractionId',
+        foreignField: 'id',
         as: 'attraction'
       }
     },
-    {$unwind: {path: '$attraction', preserveNullAndEmptyArrays: true}},
-    // Keep only what you need:
+    { $unwind: { path: '$attraction', preserveNullAndEmptyArrays: true } },
     {
       $project: {
         attractionId: 1,
@@ -122,46 +118,58 @@ module.exports.getRecentReviewsByUser = async function (userId, limit = 5) {
       }
     }
   ]);
+
+  // Fallback: if no attraction found, try to decode a readable name from the hex id
+  return rows.map(r => {
+    if (!r.attraction) {
+      const decoded = decodeHexTitle(r.attractionId);
+      if (decoded) {
+        r.attraction = { id: r.attractionId, name: decoded };
+      }
+    }
+    return r;
+  });
 };
 
 // paginated reviews for a user
 module.exports.getReviewsByUser = async function (userId, { page = 1, limit = 10 } = {}) {
-  page = Math.max(parseInt(page, 10) || 1, 1);
-  limit = Math.min(Math.max(parseInt(limit, 10) || 10, 1), 50);
-  const skip = (page - 1) * limit;
   const userObjectId = new mongoose.Types.ObjectId(userId);
 
-  const [rows, [{ count: total } = { count: 0 }]] = await Promise.all([
-    Review.aggregate([
-      { $match: { userId: userObjectId } },
-      { $sort: { createdAt: -1 } },
-      { $skip: skip },
-      { $limit: limit },
-      {
-        $lookup: {
-          from: 'attractions',
-          localField: 'attractionId',
-          foreignField: 'id',
-          as: 'attraction'
-        }
-      },
-      { $unwind: { path: '$attraction', preserveNullAndEmptyArrays: true } },
-      {
-        $project: {
-          attractionId: 1,
-          rating: 1,
-          comment: 1,
-          createdAt: 1,
-          'attraction.id': 1,
-          'attraction.name': 1,
-          'attraction.address': 1,
-          'attraction.url': 1
-        }
-      }
-    ]),
-    Review.aggregate([{ $match: { userId: userObjectId } }, { $count: 'count' }])
+  const [reviews, total] = await Promise.all([
+    Review.find({ userId: userObjectId })
+        .sort({ createdAt: -1 })
+        .skip((page - 1) * limit)
+        .limit(limit)
+        .lean(),
+    Review.countDocuments({ userId: userObjectId })
   ]);
 
-  return { reviews: rows, total, page, limit, pageCount: Math.ceil(total / limit) };
+  // Option A: keep your existing enrichment via Attraction model
+  const ids = [...new Set(reviews.map(r => r.attractionId))];
+  const attractions = await Attraction.find({ id: { $in: ids } })
+      .select('id name address url')
+      .lean();
+  const byId = Object.fromEntries(attractions.map(a => [a.id, a]));
+
+  const enriched = reviews.map(r => {
+    let attraction = byId[r.attractionId] || null;
+
+    // 🔁 Fallback to hex-decoded name when we don't have an Attraction doc
+    if (!attraction) {
+      const decoded = decodeHexTitle(r.attractionId);
+      if (decoded) {
+        attraction = { id: r.attractionId, name: decoded };
+      }
+    }
+
+    return { ...r, attraction };
+  });
+
+  return {
+    reviews: enriched,
+    total,
+    page,
+    pageCount: Math.ceil(total / limit)
+  };
 };
 
