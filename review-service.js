@@ -1,13 +1,10 @@
-// review-service.js
 const mongoose = require('mongoose');
 const Review = require('./models/Review');
 const Attraction = require('./models/Attraction');
 
 let mongoDBConnectionString = process.env.MONGO_URL;
 
-/**
- * 1) Connect to MongoDB
- */
+// 1) Connect
 module.exports.connect = function () {
   return mongoose.connect(mongoDBConnectionString, {
     useNewUrlParser: true,
@@ -16,92 +13,140 @@ module.exports.connect = function () {
   });
 };
 
-/**
- * Small helper: try to decode a readable title from a hex-only string
- * (some providers pack titles in hex).
- */
-function decodeHexTitle(maybeHex) {
-  if (!maybeHex || typeof maybeHex !== 'string') return null;
-  if (!/^[0-9a-f]+$/i.test(maybeHex) || maybeHex.length % 2 !== 0) return null;
+// ---------- Helpers ----------
+
+// Is a string mostly printable?
+function isMostlyPrintable(s) {
+  if (!s) return false;
+  const printable = s.replace(/[^\p{L}\p{N}\p{P}\p{Zs}]/gu, '');
+  return printable.length / s.length > 0.6 && printable.trim().length >= 4;
+}
+
+// Hex -> UTF8 (browser-safe equivalent, but here we’re in Node)
+function hexToUtf8Safe(hex) {
+  if (!/^[0-9a-fA-F]+$/.test(hex) || hex.length % 2 !== 0) return '';
   try {
-    const s = Buffer.from(maybeHex, 'hex').toString('utf8');
-    return /[ -~]/.test(s) ? s : null; // at least one printable ASCII
+    const buf = Buffer.from(hex, 'hex');
+    const txt = buf.toString('utf8');
+    return isMostlyPrintable(txt) ? txt : '';
   } catch {
-    return null;
+    return '';
   }
 }
 
-/**
- * 2) Add a new review
- *    Accepts optional snapshot fields:
- *    - attractionName
- *    - attractionAddress
- *    - attractionImage
- */
+// Base64 -> UTF8
+function b64ToUtf8Safe(b64) {
+  if (!/^[A-Za-z0-9+/=]+$/.test(b64) || b64.length % 4 !== 0) return '';
+  try {
+    const txt = Buffer.from(b64, 'base64').toString('utf8');
+    return isMostlyPrintable(txt) ? txt : '';
+  } catch {
+    return '';
+  }
+}
+
+// Extract a nice, human title from a weird string:
+// - split on non-printables, take the LONGEST segment
+function prettifyTitle(s) {
+  if (!s) return '';
+  const segments = s.split(/[^\p{L}\p{N}\p{P}\p{Zs}]+/gu).filter(Boolean);
+  if (!segments.length) return s.trim();
+  segments.sort((a, b) => b.length - a.length);
+  return segments[0].trim();
+}
+
+// Best-effort decode of an attractionId to a readable title
+function decodeAttractionIdToName(id) {
+  if (!id || typeof id !== 'string') return '';
+
+  // Try hex
+  const hex = hexToUtf8Safe(id);
+  if (hex) return prettifyTitle(hex);
+
+  // Try base64
+  const b64 = b64ToUtf8Safe(id);
+  if (b64) return prettifyTitle(b64);
+
+  // Fallback: prettify the raw id
+  return prettifyTitle(id);
+}
+
+// Build flattened fields for the frontend
+function flattenAttractionFields(row) {
+  // Prefer real Attraction doc
+  let name = row?.attraction?.name || '';
+  let image = row?.attraction?.image || '';
+  let address = row?.attraction?.address || '';
+  let url = row?.attraction?.url || '';
+
+  if (!name) {
+    // No doc matched -> derive from id
+    name = decodeAttractionIdToName(row.attractionId) || '';
+  } else {
+    // Even when we have a name, clean it just in case
+    name = prettifyTitle(name);
+  }
+
+  return {
+    attractionName: name || 'Attraction',
+    attractionImage: image || '',
+    attractionAddress: address || '',
+    attractionUrl: url || ''
+  };
+}
+
+// ---------- Public API ----------
+
+// 2) Add a new review
 module.exports.addReview = function (userId, reviewData) {
-  return new Promise(async (resolve, reject) => {
-    try {
-      const {
-        attractionId,
-        rating,
-        comment,
-        // optional snapshots
-        attractionName,
-        attractionAddress,
-        attractionImage
-      } = reviewData;
+  return new Promise((resolve, reject) => {
+    const { attractionId, rating, comment } = reviewData;
 
-      if (!attractionId || !rating) {
-        return reject('Attraction ID and rating are required.');
-      }
-
-      let userObjectId;
-      try {
-        userObjectId = new mongoose.Types.ObjectId(userId);
-      } catch {
-        return reject('Invalid userId format.');
-      }
-
-      // Prevent multiple reviews by same user for same attraction
-      const existing = await Review.findOne({
-        userId: userObjectId,
-        attractionId: attractionId // keep as string
-      });
-      if (existing) return reject('You have already reviewed this attraction.');
-
-      const newReview = new Review({
-        attractionId,                 // keep as string
-        userId: userObjectId,
-        rating,
-        comment,
-        // snapshot fields (optional)
-        attractionName,
-        attractionAddress,
-        attractionImage
-      });
-
-      const saved = await newReview.save();
-      resolve(saved);
-    } catch (err) {
-      reject('Error saving review: ' + (err?.message || err));
+    if (!attractionId || !rating) {
+      reject("Attraction ID and rating are required.");
+      return;
     }
+
+    let userObjectId;
+    try {
+      userObjectId = new mongoose.Types.ObjectId(userId);
+    } catch (err) {
+      reject("Invalid userId format.");
+      return;
+    }
+
+    Review.findOne({
+      userId: userObjectId,
+      attractionId: attractionId // keep string
+    })
+        .then(existing => {
+          if (existing) {
+            reject("You have already reviewed this attraction.");
+          } else {
+            const newReview = new Review({
+              attractionId,
+              userId: userObjectId,
+              rating,
+              comment
+            });
+
+            newReview.save()
+                .then(saved => resolve(saved))
+                .catch(err => reject("Error saving review: " + err));
+          }
+        })
+        .catch(err => reject("Error checking existing review: " + err));
   });
 };
 
-/**
- * 3) Get all reviews for an attraction (sorted newest first)
- */
+// 3) Get all reviews for an attraction
 module.exports.getReviewsForAttraction = function (attractionId) {
-  return Review.find({ attractionId }) // keep as string
+  return Review.find({ attractionId })
       .sort({ createdAt: -1 })
       .populate('userId', 'userName')
-      .lean()
       .exec();
 };
 
-/**
- * 4) Delete a review (only by owner)
- */
 module.exports.deleteReview = async (reviewId, userId) => {
   const review = await Review.findById(reviewId);
   if (!review) return false;
@@ -110,9 +155,7 @@ module.exports.deleteReview = async (reviewId, userId) => {
   return true;
 };
 
-/**
- * 5) Last N reviews for a user (prefers snapshot fields, falls back to Attraction join, then hex)
- */
+// Last N reviews for a user (flattened + cleaned)
 module.exports.getRecentReviewsByUser = async function (userId, limit = 5) {
   const userObjectId = new mongoose.Types.ObjectId(userId);
 
@@ -122,93 +165,97 @@ module.exports.getRecentReviewsByUser = async function (userId, limit = 5) {
     { $limit: limit },
     {
       $lookup: {
-        from: 'attractions',           // collection name
-        localField: 'attractionId',    // Review.attractionId (string)
-        foreignField: 'id',            // Attraction.id (string)
+        from: 'attractions',
+        localField: 'attractionId', // string id
+        foreignField: 'id',         // Attraction.id (string)
         as: 'attraction'
       }
     },
     { $unwind: { path: '$attraction', preserveNullAndEmptyArrays: true } },
     {
-      // Prefer snapshot fields if present; otherwise use joined Attraction
       $project: {
         attractionId: 1,
         rating: 1,
         comment: 1,
         createdAt: 1,
-
-        attractionName:    { $ifNull: ['$attractionName', '$attraction.name'] },
-        attractionAddress: { $ifNull: ['$attractionAddress', '$attraction.address'] },
-        attractionImage:   { $ifNull: ['$attractionImage', '$attraction.image'] },
-
-        // keep full joined doc minimally (optional)
-        'attraction.id': 1,
-        'attraction.name': 1,
-        'attraction.address': 1,
-        'attraction.url': 1,
-        'attraction.image': 1
+        attraction: {
+          id: '$attraction.id',
+          name: '$attraction.name',
+          image: '$attraction.image',
+          address: '$attraction.address',
+          url: '$attraction.url'
+        }
       }
     }
   ]);
 
-  // Final fallback: decode hex-ish attractionId to a readable name.
+  // flatten + clean
   return rows.map(r => {
-    if (!r.attractionName) {
-      const decoded = decodeHexTitle(r.attractionId);
-      if (decoded) r.attractionName = decoded;
-    }
-    return r;
+    const flat = flattenAttractionFields(r);
+    // Keep original fields + flattened ones; drop bulky attraction object if you want
+    return {
+      _id: r._id,
+      attractionId: r.attractionId,
+      rating: r.rating,
+      comment: r.comment,
+      createdAt: r.createdAt,
+      ...flat
+    };
   });
 };
 
-/**
- * 6) Paginated reviews for a user (prefers snapshot fields, then Attraction join, then hex)
- */
+// Paginated reviews for a user (flattened + cleaned)
 module.exports.getReviewsByUser = async function (userId, { page = 1, limit = 10 } = {}) {
   const userObjectId = new mongoose.Types.ObjectId(userId);
-  const skip = (page - 1) * limit;
 
-  const [reviews, total] = await Promise.all([
-    Review.find({ userId: userObjectId })
-        .sort({ createdAt: -1 })
-        .skip(skip)
-        .limit(limit)
-        .lean(),
+  const [rows, total] = await Promise.all([
+    Review.aggregate([
+      { $match: { userId: userObjectId } },
+      { $sort: { createdAt: -1 } },
+      { $skip: (page - 1) * limit },
+      { $limit: limit },
+      {
+        $lookup: {
+          from: 'attractions',
+          localField: 'attractionId',
+          foreignField: 'id',
+          as: 'attraction'
+        }
+      },
+      { $unwind: { path: '$attraction', preserveNullAndEmptyArrays: true } },
+      {
+        $project: {
+          attractionId: 1,
+          rating: 1,
+          comment: 1,
+          createdAt: 1,
+          attraction: {
+            id: '$attraction.id',
+            name: '$attraction.name',
+            image: '$attraction.image',
+            address: '$attraction.address',
+            url: '$attraction.url'
+          }
+        }
+      }
+    ]),
     Review.countDocuments({ userId: userObjectId })
   ]);
 
-  // If snapshots missing, still try to enrich from Attraction
-  const ids = [...new Set(reviews.map(r => r.attractionId))];
-  const attractions = await Attraction.find({ id: { $in: ids } })
-      .select('id name address image url')
-      .lean();
-  const byId = Object.fromEntries(attractions.map(a => [a.id, a]));
-
-  const enriched = reviews.map(r => {
-    const a = byId[r.attractionId];
-
-    // prefer snapshots already on the review
-    let attractionName    = r.attractionName    || a?.name    || null;
-    let attractionAddress = r.attractionAddress || a?.address || null;
-    let attractionImage   = r.attractionImage   || a?.image   || null;
-
-    // last-resort hex decode to show something readable
-    if (!attractionName) {
-      const decoded = decodeHexTitle(r.attractionId);
-      if (decoded) attractionName = decoded;
-    }
-
+  const reviews = rows.map(r => {
+    const flat = flattenAttractionFields(r);
     return {
-      ...r,
-      attractionName,
-      attractionAddress,
-      attractionImage,
-      attraction: a || null
+      _id: r._id,
+      attractionId: r.attractionId,
+      rating: r.rating,
+      comment: r.comment,
+      createdAt: r.createdAt,
+      ...flat
     };
   });
 
   return {
-    reviews: enriched,
+    reviews,
     total,
     page,
     pageCount: Math.ceil(total / limit)
