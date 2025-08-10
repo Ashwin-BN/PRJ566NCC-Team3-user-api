@@ -13,95 +13,114 @@ module.exports.connect = function () {
   });
 };
 
-// ---------- Helpers ----------
+// ---------- Helpers to extract a readable title from weird ids ----------
 
-// Is a string mostly printable?
+function hexToUtf8OrNull(hex) {
+  if (typeof hex !== 'string') return null;
+  if (!/^[0-9a-fA-F]+$/.test(hex) || hex.length % 2 !== 0) return null;
+  try {
+    return Buffer.from(hex, 'hex').toString('utf8');
+  } catch {
+    return null;
+  }
+}
+
+function base64ToUtf8OrNull(b64) {
+  if (typeof b64 !== 'string') return null;
+  if (!/^[A-Za-z0-9+/=]+$/.test(b64) || b64.length % 4 !== 0) return null;
+  try {
+    return Buffer.from(b64, 'base64').toString('utf8');
+  } catch {
+    return null;
+  }
+}
+
 function isMostlyPrintable(s) {
   if (!s) return false;
+  // keep letters, numbers, punctuation, spaces
   const printable = s.replace(/[^\p{L}\p{N}\p{P}\p{Zs}]/gu, '');
   return printable.length / s.length > 0.6 && printable.trim().length >= 4;
 }
 
-// Hex -> UTF8 (browser-safe equivalent, but here we’re in Node)
-function hexToUtf8Safe(hex) {
-  if (!/^[0-9a-fA-F]+$/.test(hex) || hex.length % 2 !== 0) return '';
-  try {
-    const buf = Buffer.from(hex, 'hex');
-    const txt = buf.toString('utf8');
-    return isMostlyPrintable(txt) ? txt : '';
-  } catch {
-    return '';
-  }
-}
-
-// Base64 -> UTF8
-function b64ToUtf8Safe(b64) {
-  if (!/^[A-Za-z0-9+/=]+$/.test(b64) || b64.length % 4 !== 0) return '';
-  try {
-    const txt = Buffer.from(b64, 'base64').toString('utf8');
-    return isMostlyPrintable(txt) ? txt : '';
-  } catch {
-    return '';
-  }
-}
-
-// Extract a nice, human title from a weird string:
-// - split on non-printables, take the LONGEST segment
-function prettifyTitle(s) {
+function extractLongestPrintableSegment(s) {
   if (!s) return '';
+  // split on non-printable runs; keep letter/number/punctuation/space
   const segments = s.split(/[^\p{L}\p{N}\p{P}\p{Zs}]+/gu).filter(Boolean);
-  if (!segments.length) return s.trim();
+  if (!segments.length) return '';
+  // pick the longest segment (often the real title lives at the tail)
   segments.sort((a, b) => b.length - a.length);
-  return segments[0].trim();
+  return segments[0];
 }
 
-// Best-effort decode of an attractionId to a readable title
-function decodeAttractionIdToName(id) {
+function sanitizeTitle(s) {
+  if (!s) return '';
+  // trim, collapse spaces, drop leading junk like #/&/punct/control
+  s = s.replace(/\s+/g, ' ').trim();
+  s = s.replace(/^[^A-Za-z0-9]+/, '');
+  // also strip a trailing run of non-alnum if that happens
+  s = s.replace(/[^A-Za-z0-9)]+$/, '').trim();
+  return s;
+}
+
+function safeTitleFromId(id) {
   if (!id || typeof id !== 'string') return '';
 
-  // Try hex
-  const hex = hexToUtf8Safe(id);
-  if (hex) return prettifyTitle(hex);
-
-  // Try base64
-  const b64 = b64ToUtf8Safe(id);
-  if (b64) return prettifyTitle(b64);
-
-  // Fallback: prettify the raw id
-  return prettifyTitle(id);
-}
-
-// Build flattened fields for the frontend
-function flattenAttractionFields(row) {
-  // Prefer real Attraction doc
-  let name = row?.attraction?.name || '';
-  let image = row?.attraction?.image || '';
-  let address = row?.attraction?.address || '';
-  let url = row?.attraction?.url || '';
-
-  if (!name) {
-    // No doc matched -> derive from id
-    name = decodeAttractionIdToName(row.attractionId) || '';
-  } else {
-    // Even when we have a name, clean it just in case
-    name = prettifyTitle(name);
+  // Try HEX → UTF8
+  let decoded = hexToUtf8OrNull(id);
+  if (decoded && isMostlyPrintable(decoded)) {
+    const seg = extractLongestPrintableSegment(decoded);
+    const clean = sanitizeTitle(seg);
+    if (clean.length >= 3) return clean;
   }
 
-  return {
-    attractionName: name || 'Attraction',
-    attractionImage: image || '',
-    attractionAddress: address || '',
-    attractionUrl: url || ''
-  };
+  // Try Base64 → UTF8
+  decoded = base64ToUtf8OrNull(id);
+  if (decoded && isMostlyPrintable(decoded)) {
+    const seg = extractLongestPrintableSegment(decoded);
+    const clean = sanitizeTitle(seg);
+    if (clean.length >= 3) return clean;
+  }
+
+  // Fallback: longest printable segment from the raw id
+  const seg = extractLongestPrintableSegment(id);
+  const clean = sanitizeTitle(seg);
+  if (clean.length >= 3) return clean;
+
+  return ''; // final fallback handled by caller
 }
 
-// ---------- Public API ----------
+// flatten a review doc + optional attraction doc into UI-friendly fields
+function flattenReviewRow(row) {
+  const attractionDoc = row.attraction || null;
+
+  // Base fields
+  const out = {
+    _id: row._id,
+    attractionId: row.attractionId,
+    rating: row.rating,
+    comment: row.comment,
+    createdAt: row.createdAt,
+  };
+
+  // Prefer real Attraction name; else decode from id; else raw id
+  const decoded = safeTitleFromId(row.attractionId);
+  out.attractionName =
+      (attractionDoc && attractionDoc.name) ||
+      decoded ||
+      row.attractionId ||
+      'Attraction';
+
+  out.attractionAddress = (attractionDoc && attractionDoc.address) || '';
+  out.attractionImage   = (attractionDoc && attractionDoc.image)   || '';
+  out.attractionUrl     = (attractionDoc && attractionDoc.url)     || '';
+
+  return out;
+}
 
 // 2) Add a new review
 module.exports.addReview = function (userId, reviewData) {
   return new Promise((resolve, reject) => {
     const { attractionId, rating, comment } = reviewData;
-
     if (!attractionId || !rating) {
       reject("Attraction ID and rating are required.");
       return;
@@ -110,36 +129,31 @@ module.exports.addReview = function (userId, reviewData) {
     let userObjectId;
     try {
       userObjectId = new mongoose.Types.ObjectId(userId);
-    } catch (err) {
+    } catch {
       reject("Invalid userId format.");
       return;
     }
 
-    Review.findOne({
-      userId: userObjectId,
-      attractionId: attractionId // keep string
-    })
+    Review.findOne({ userId: userObjectId, attractionId })
         .then(existing => {
-          if (existing) {
-            reject("You have already reviewed this attraction.");
-          } else {
-            const newReview = new Review({
-              attractionId,
-              userId: userObjectId,
-              rating,
-              comment
-            });
+          if (existing) return reject("You have already reviewed this attraction.");
 
-            newReview.save()
-                .then(saved => resolve(saved))
-                .catch(err => reject("Error saving review: " + err));
-          }
+          const newReview = new Review({
+            attractionId, // keep as string
+            userId: userObjectId,
+            rating,
+            comment
+          });
+
+          newReview.save()
+              .then(saved => resolve(saved))
+              .catch(err => reject("Error saving review: " + err));
         })
         .catch(err => reject("Error checking existing review: " + err));
   });
 };
 
-// 3) Get all reviews for an attraction
+// 3) Reviews for a given attraction (kept as-is)
 module.exports.getReviewsForAttraction = function (attractionId) {
   return Review.find({ attractionId })
       .sort({ createdAt: -1 })
@@ -155,7 +169,7 @@ module.exports.deleteReview = async (reviewId, userId) => {
   return true;
 };
 
-// Last N reviews for a user (flattened + cleaned)
+// 4) Last N reviews for a user (with enrichment + clean name)
 module.exports.getRecentReviewsByUser = async function (userId, limit = 5) {
   const userObjectId = new mongoose.Types.ObjectId(userId);
 
@@ -166,8 +180,8 @@ module.exports.getRecentReviewsByUser = async function (userId, limit = 5) {
     {
       $lookup: {
         from: 'attractions',
-        localField: 'attractionId', // string id
-        foreignField: 'id',         // Attraction.id (string)
+        localField: 'attractionId',
+        foreignField: 'id',
         as: 'attraction'
       }
     },
@@ -178,84 +192,42 @@ module.exports.getRecentReviewsByUser = async function (userId, limit = 5) {
         rating: 1,
         comment: 1,
         createdAt: 1,
-        attraction: {
-          id: '$attraction.id',
-          name: '$attraction.name',
-          image: '$attraction.image',
-          address: '$attraction.address',
-          url: '$attraction.url'
-        }
+        'attraction.id': 1,
+        'attraction.name': 1,
+        'attraction.address': 1,
+        'attraction.image': 1,
+        'attraction.url': 1
       }
     }
   ]);
 
-  // flatten + clean
-  return rows.map(r => {
-    const flat = flattenAttractionFields(r);
-    // Keep original fields + flattened ones; drop bulky attraction object if you want
-    return {
-      _id: r._id,
-      attractionId: r.attractionId,
-      rating: r.rating,
-      comment: r.comment,
-      createdAt: r.createdAt,
-      ...flat
-    };
-  });
+  return rows.map(flattenReviewRow);
 };
 
-// Paginated reviews for a user (flattened + cleaned)
+// 5) Paginated reviews for a user (same cleaning)
 module.exports.getReviewsByUser = async function (userId, { page = 1, limit = 10 } = {}) {
   const userObjectId = new mongoose.Types.ObjectId(userId);
 
-  const [rows, total] = await Promise.all([
-    Review.aggregate([
-      { $match: { userId: userObjectId } },
-      { $sort: { createdAt: -1 } },
-      { $skip: (page - 1) * limit },
-      { $limit: limit },
-      {
-        $lookup: {
-          from: 'attractions',
-          localField: 'attractionId',
-          foreignField: 'id',
-          as: 'attraction'
-        }
-      },
-      { $unwind: { path: '$attraction', preserveNullAndEmptyArrays: true } },
-      {
-        $project: {
-          attractionId: 1,
-          rating: 1,
-          comment: 1,
-          createdAt: 1,
-          attraction: {
-            id: '$attraction.id',
-            name: '$attraction.name',
-            image: '$attraction.image',
-            address: '$attraction.address',
-            url: '$attraction.url'
-          }
-        }
-      }
-    ]),
+  const [reviews, total] = await Promise.all([
+    Review.find({ userId: userObjectId })
+        .sort({ createdAt: -1 })
+        .skip((page - 1) * limit)
+        .limit(limit)
+        .lean(),
     Review.countDocuments({ userId: userObjectId })
   ]);
 
-  const reviews = rows.map(r => {
-    const flat = flattenAttractionFields(r);
-    return {
-      _id: r._id,
-      attractionId: r.attractionId,
-      rating: r.rating,
-      comment: r.comment,
-      createdAt: r.createdAt,
-      ...flat
-    };
-  });
+  // fetch any matching Attraction docs in one go
+  const ids = [...new Set(reviews.map(r => r.attractionId))];
+  const attractions = await Attraction.find({ id: { $in: ids } })
+      .select('id name address image url')
+      .lean();
+  const byId = Object.fromEntries(attractions.map(a => [a.id, a]));
+
+  const enriched = reviews.map(r => flattenReviewRow({ ...r, attraction: byId[r.attractionId] || null }));
 
   return {
-    reviews,
+    reviews: enriched,
     total,
     page,
     pageCount: Math.ceil(total / limit)
