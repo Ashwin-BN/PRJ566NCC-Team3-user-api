@@ -126,20 +126,24 @@ console.log("Generated token:", token);
 });
 
 // GET current user profile
-app.get("/api/user/profile", passport.authenticate("jwt", { session: false }), async (req, res) => {
-    try {
-        const user = await userProfileService.getUserProfile(req.user._id);
-        if (!user) return res.status(404).json({ message: "User not found" });
+app.get("/api/user/profile",
+    passport.authenticate("jwt", { session: false }),
+    async (req, res) => {
+        try {
+            const user = await userProfileService.getUserProfile(req.user._id);
+            if (!user) return res.status(404).json({ message: "User not found" });
 
-        // last 5 reviews for the logged-in user
-        const recentReviews = await reviewService.getRecentReviewsByUser(req.user._id, 5);
+            // Query the reviews collection (not the user)
+            const recentReviews = await reviewService.getRecentReviewsByUser(req.user._id, 5);
 
-        res.json({ user, recentReviews }); // keep itineraries separate (your itinerary routes already exist)
-    } catch (err) {
-        console.error("[/api/user/profile] ERROR:", err && err.stack ? err.stack : err);
-        res.status(500).json({ message: "Failed to fetch profile", error: err?.message || String(err) });
+            // Return user plus reviews as separate property
+            const userObj = user.toObject ? user.toObject() : user;
+            res.json({ ...userObj, recentReviews });
+        } catch (err) {
+            res.status(500).json({ message: "Failed to fetch profile", error: err?.message || err });
+        }
     }
-});
+);
 
 // GET profile + public itineraries by username
 app.get("/api/user/profile/username/:username", async (req, res) => {
@@ -470,22 +474,25 @@ app.delete('/api/reviews/:reviewId', passport.authenticate('jwt', { session: fal
     }
   });
 
-// GET all reviews (paginated) for the **current** user (auth)
-app.get("/api/user/reviews", passport.authenticate("jwt", { session: false }), async (req, res) => {
-    try {
-        const page  = Math.max(parseInt(req.query.page, 10)  || 1, 1);
-        const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 10, 1), 50);
+// GET all reviews by current user (paginated)
+app.get("/api/user/reviews",
+    passport.authenticate("jwt", { session: false }),
+    async (req, res) => {
+        try {
+            const page  = Math.max(parseInt(req.query.page, 10)  || 1, 1);
+            const limit = Math.min(parseInt(req.query.limit, 10) || 10, 50);
+            const skip  = (page - 1) * limit;
 
-        const { reviews, total, pageCount } = await reviewService.getReviewsByUser(req.user._id, { page, limit });
-        res.json({ reviews, total, page, pageCount, limit });
-    } catch (err) {
-        console.error("[/api/user/reviews] ERROR:", err && err.stack ? err.stack : err);
-        res.status(500).json({ message: "Failed to fetch reviews", error: err?.message || String(err) });
+            const { reviews, total } = await reviewService.getReviewsByUser(req.user._id, { page, limit });
+            res.json({ reviews, total, page, limit });
+        } catch (err) {
+            res.status(500).json({ message: "Failed to fetch user reviews", error: err?.message || err });
+        }
     }
-});
+);
 
 
-// GET all reviews (paginated) for a **public profile** by username (no auth)
+// GET all reviews (paginated) for a public profile by username
 app.get("/api/user/:username/reviews", async (req, res) => {
     try {
         const user = await userProfileService.getUserProfileByUsername(req.params.username);
@@ -543,7 +550,8 @@ app.get('/api/itineraries/shared/:id', async (req, res) => {
 Promise.all([
     userService.connect(),
     itineraryService.connect(),
-    savedAttractionService.connect()
+    savedAttractionService.connect(),
+    reviewService.connect()
 ])
     .then(() => {
         app.listen(HTTP_PORT, () => {
