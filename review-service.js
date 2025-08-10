@@ -44,49 +44,56 @@ function isMostlyPrintable(s) {
 
 function extractLongestPrintableSegment(s) {
   if (!s) return '';
-  // split on non-printable runs; keep letter/number/punctuation/space
+  // split on non-printables; keep letters/numbers/punctuation/spaces
   const segments = s.split(/[^\p{L}\p{N}\p{P}\p{Zs}]+/gu).filter(Boolean);
   if (!segments.length) return '';
-  // pick the longest segment (often the real title lives at the tail)
+  // bias toward the end (titles are often appended)
   segments.sort((a, b) => b.length - a.length);
-  return segments[0];
+  // if there are ties, prefer the later segment
+  let best = segments[0];
+  for (const seg of segments) {
+    if (seg.length < best.length) break;
+    best = seg; // keep moving — later wins on equal length
+  }
+  return best;
 }
 
 function sanitizeTitle(s) {
   if (!s) return '';
-  // trim, collapse spaces, drop leading junk like #/&/punct/control
+  // collapse whitespace and trim
   s = s.replace(/\s+/g, ' ').trim();
-  s = s.replace(/^[^A-Za-z0-9]+/, '');
-  // also strip a trailing run of non-alnum if that happens
-  s = s.replace(/[^A-Za-z0-9)]+$/, '').trim();
+  // strip leading junk like #/&/punct/control bytes
+  s = s.replace(/^[^\p{L}\p{N}]+/u, '');
+  // strip trailing junk
+  s = s.replace(/[^\p{L}\p{N})]+$/u, '').trim();
   return s;
 }
 
 function safeTitleFromId(id) {
   if (!id || typeof id !== 'string') return '';
 
-  // Try HEX → UTF8
+  // 1) HEX → UTF8, then ALWAYS try to extract a printable tail
   let decoded = hexToUtf8OrNull(id);
-  if (decoded && isMostlyPrintable(decoded)) {
+  if (decoded) {
     const seg = extractLongestPrintableSegment(decoded);
     const clean = sanitizeTitle(seg);
     if (clean.length >= 3) return clean;
   }
 
-  // Try Base64 → UTF8
+  // 2) Base64 → UTF8, same approach
   decoded = base64ToUtf8OrNull(id);
-  if (decoded && isMostlyPrintable(decoded)) {
+  if (decoded) {
     const seg = extractLongestPrintableSegment(decoded);
     const clean = sanitizeTitle(seg);
     if (clean.length >= 3) return clean;
   }
 
-  // Fallback: longest printable segment from the raw id
+  // 3) Last-resort: try directly on the raw id
   const seg = extractLongestPrintableSegment(id);
   const clean = sanitizeTitle(seg);
   if (clean.length >= 3) return clean;
 
-  return ''; // final fallback handled by caller
+  return '';
 }
 
 // flatten a review doc + optional attraction doc into UI-friendly fields
