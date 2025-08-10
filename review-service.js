@@ -126,23 +126,42 @@ module.exports.getRecentReviewsByUser = async function (userId, limit = 5) {
 
 // paginated reviews for a user
 module.exports.getReviewsByUser = async function (userId, { page = 1, limit = 10 } = {}) {
+  page = Math.max(parseInt(page, 10) || 1, 1);
+  limit = Math.min(Math.max(parseInt(limit, 10) || 10, 1), 50);
+  const skip = (page - 1) * limit;
   const userObjectId = new mongoose.Types.ObjectId(userId);
 
-  const [reviews, total] = await Promise.all([
-    Review.find({ userId: userObjectId })
-        .sort({ createdAt: -1 })
-        .skip((page - 1) * limit)
-        .limit(limit)
-        .lean(),
-    Review.countDocuments({ userId: userObjectId })
+  const [rows, [{ count: total } = { count: 0 }]] = await Promise.all([
+    Review.aggregate([
+      { $match: { userId: userObjectId } },
+      { $sort: { createdAt: -1 } },
+      { $skip: skip },
+      { $limit: limit },
+      {
+        $lookup: {
+          from: 'attractions',
+          localField: 'attractionId',
+          foreignField: 'id',
+          as: 'attraction'
+        }
+      },
+      { $unwind: { path: '$attraction', preserveNullAndEmptyArrays: true } },
+      {
+        $project: {
+          attractionId: 1,
+          rating: 1,
+          comment: 1,
+          createdAt: 1,
+          'attraction.id': 1,
+          'attraction.name': 1,
+          'attraction.address': 1,
+          'attraction.url': 1
+        }
+      }
+    ]),
+    Review.aggregate([{ $match: { userId: userObjectId } }, { $count: 'count' }])
   ]);
 
-  const enriched = await enrichWithAttractions(reviews);
-  return {
-    reviews: enriched,
-    total,
-    page,
-    pageCount: Math.ceil(total / limit)
-  };
+  return { reviews: rows, total, page, limit, pageCount: Math.ceil(total / limit) };
 };
 
