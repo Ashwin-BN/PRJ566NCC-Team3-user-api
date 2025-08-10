@@ -95,12 +95,33 @@ async function enrichWithAttractions(reviews) {
 module.exports.getRecentReviewsByUser = async function (userId, limit = 5) {
   const userObjectId = new mongoose.Types.ObjectId(userId);
 
-  const reviews = await Review.find({ userId: userObjectId })
-      .sort({ createdAt: -1 })
-      .limit(limit)
-      .lean();
-
-  return enrichWithAttractions(reviews);
+  return Review.aggregate([
+    {$match: {userId: userObjectId}},
+    {$sort: {createdAt: -1}},
+    {$limit: limit},
+    {
+      $lookup: {
+        from: 'attractions',          // collection name
+        localField: 'attractionId',   // Review.attractionId (string)
+        foreignField: 'id',           // Attraction.id (string)
+        as: 'attraction'
+      }
+    },
+    {$unwind: {path: '$attraction', preserveNullAndEmptyArrays: true}},
+    // Keep only what you need:
+    {
+      $project: {
+        attractionId: 1,
+        rating: 1,
+        comment: 1,
+        createdAt: 1,
+        'attraction.id': 1,
+        'attraction.name': 1,
+        'attraction.address': 1,
+        'attraction.url': 1
+      }
+    }
+  ]);
 };
 
 // paginated reviews for a user
