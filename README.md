@@ -5,6 +5,12 @@ It handles **user authentication, itinerary management, saved attractions, revie
 
 ---
 
+## 📌 Related Repositories & Deployments
+- **Frontend Repository:** [PRJ566NCC-Team3](https://github.com/Ashwin-BN/PRJ566NCC-Team3)  
+- **Backend Deployment:** [EasyExplore API on Vercel](https://prj-566-ncc-team3-user-api.vercel.app/)
+
+---
+
 ## Features
 
 - **User Authentication**  
