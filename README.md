@@ -1,4 +1,4 @@
-# EasyExplore Backend API
+# ![Easy Explore Logo](./img/logo.png) EasyExplore Backend API
 
 The **EasyExplore Backend** is a RESTful Node.js API built with **Express** and **MongoDB** that powers the EasyExplore travel planning application.  
 It handles **user authentication, itinerary management, saved attractions, reviews**, and **Google Calendar / iCal syncing**.
