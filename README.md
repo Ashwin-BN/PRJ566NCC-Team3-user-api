@@ -179,11 +179,11 @@ Ensure MongoDB is accessible from the deployed environment and `.env` variables 
 
 ## 👥 Contributors
 
-* **Ashwin BN** — Full-stack Developer ([GitHub](https://github.com/Ashwin-BN))
-* **Alex Leung** — Collaborator ([GitHub](https://github.com/Alex-Leungg))
-* **Jeelkumar Patel** — Collaborator ([GitHub](https://github.com/jeelpatel22))
-* **Juan Moncayo** — Collaborator ([GitHub](https://github.com/Juancinn))
-* **Suraj Sapkota** — Collaborator ([GitHub](https://github.com/surajsapkota))
+* [**Ashwin BN**](https://github.com/Ashwin-BN)
+* [**Alex Leung**](https://github.com/Alex-Leungg)
+* [**Jeelkumar Patel**](https://github.com/jeelpatel22)
+* [**Juan Moncayo**](https://github.com/Juancinn)
+* [**Suraj Sapkota**](https://github.com/surajsapkota)
 
 ---
 
