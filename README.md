@@ -3,11 +3,8 @@
 The **EasyExplore Backend** is a RESTful Node.js API built with **Express** and **MongoDB** that powers the EasyExplore travel planning application.  
 It handles **user authentication, itinerary management, saved attractions, reviews**, and **Google Calendar / iCal syncing**.
 
----
-
-## 📌 Related Repositories & Deployments
 - **Frontend Repository:** [PRJ566NCC-Team3](https://github.com/Ashwin-BN/PRJ566NCC-Team3)  
-- **Backend Deployment:** [EasyExplore API on Vercel](https://prj-566-ncc-team3-user-api.vercel.app/)
+- **Backend Deployment:** [Vercel API](https://prj-566-ncc-team3-user-api.vercel.app/)
 
 ---
 
@@ -46,15 +43,33 @@ It handles **user authentication, itinerary management, saved attractions, revie
 ```
 
 .
-├── controllers/           # API route logic (e.g., reviews, sync)
-├── middleware/            # Auth middleware
-├── models/                # Mongoose models (User, Itinerary, Review, Attraction)
-├── routes/                # Express route definitions
-├── utils/                 # Utility modules (Google Calendar, iCal helpers)
-├── services/              # Business logic & DB interaction
-├── server.js               # App entry point
-├── package.json            # Dependencies & scripts
-└── vercel.json             # Vercel deployment config
+├── README.md
+├── controllers/
+│   ├── reviewController.js
+│   └── syncController.js
+├── itinerary-service.js
+├── middleware/
+│   └── authMiddleware.js
+├── models/
+│   ├── Attraction.js
+│   ├── Itinerary.js
+│   ├── Review\.js
+│   └── User.js
+├── package-lock.json
+├── package.json
+├── review-service.js
+├── routes/
+│   ├── itineraryRoutes.js
+│   ├── reviewRoutes.js
+│   └── syncRoutes.js
+├── savedAttraction-service.js
+├── server.js
+├── user-profile-service.js
+├── user-service.js
+├── utils/
+│   ├── googleCalendar.js
+│   └── icalHelper.js
+└── vercel.json
 
 ````
 
@@ -158,18 +173,17 @@ npm start
 ## Deployment
 
 This backend is configured for **Vercel deployment** (`vercel.json` included).
-Ensure MongoDB is accessible from the deployed environment and `.env` variables are set in Vercel dashboard.
+Ensure MongoDB is accessible from the deployed environment and `.env` variables are set in the Vercel dashboard.
 
 ---
 
 ## 👥 Contributors
 
-- **Ashwin BN** — Collaborator ([GitHub](https://github.com/Ashwin-BN))
-- **Alex Leung** — Collaborator ([GitHub](https://github.com/Alex-Leungg))
-- **Jeelkumar Patel** — Collaborator ([GitHub](https://github.com/jeelpatel22))
-- **Juan Moncayo** — Collaborator ([GitHub](https://github.com/Juancinn))
-- **Suraj Sapkota** — Collaborator ([GitHub](https://github.com/surajsapkota))
-
+* **Ashwin BN** — Full-stack Developer ([GitHub](https://github.com/Ashwin-BN))
+* **Alex Leung** — Collaborator ([GitHub](https://github.com/Alex-Leungg))
+* **Jeelkumar Patel** — Collaborator ([GitHub](https://github.com/jeelpatel22))
+* **Juan Moncayo** — Collaborator ([GitHub](https://github.com/Juancinn))
+* **Suraj Sapkota** — Collaborator ([GitHub](https://github.com/surajsapkota))
 
 ---
 
