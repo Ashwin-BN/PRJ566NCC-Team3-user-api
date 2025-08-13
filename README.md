@@ -189,4 +189,4 @@ Ensure MongoDB is accessible from the deployed environment and `.env` variables 
 
 ## License
 
-This project is licensed under the **ISC License**.
+This project is licensed under the [MIT License](./LICENSE) © 2025 Easy Explore Team
