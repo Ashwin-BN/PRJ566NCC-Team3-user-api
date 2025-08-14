@@ -18,7 +18,7 @@ It handles **user authentication, itinerary management, saved attractions, revie
 - **Itinerary Management**  
   - Create, read, update, delete itineraries  
   - Add/remove attractions  
-  - Collaborator management (invite/remove)  
+  - Collaborator management (add/remove)  
   - Public sharing of itineraries  
 
 - **Saved Attractions**  
@@ -80,7 +80,7 @@ It handles **user authentication, itinerary management, saved attractions, revie
 - **Backend:** Node.js, Express  
 - **Database:** MongoDB + Mongoose  
 - **Authentication:** JWT + Passport  
-- **Other:** bcryptjs, dotenv, cors, axios, moment, googleapis, ics  
+- **Other:** bcryptjs, dotenv, cors, axios, moment, ics  
 
 ---
 
@@ -88,7 +88,7 @@ It handles **user authentication, itinerary management, saved attractions, revie
 
 ### Clone the repository
 ```bash
-git clone https://github.com/<your-org>/PRJ566NCC-Team3-user-api.git
+git clone https://github.com/Ashwin-BN/PRJ566NCC-Team3-user-api.git
 cd PRJ566NCC-Team3-user-api
 ````
 
