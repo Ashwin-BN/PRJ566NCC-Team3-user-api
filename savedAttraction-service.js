@@ -28,5 +28,5 @@ module.exports.getSavedAttractionsByUser = function (userId) {
 
 // Remove a saved attraction
 module.exports.removeSavedAttraction = function (userId, attractionId) {
-    return Attraction.findOneAndDelete({ userId, id: attractionId }).exec();
+    return Attraction.findOneAndDelete({ userId, _id: attractionId }).exec();
 };
