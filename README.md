@@ -3,7 +3,7 @@
 The **EasyExplore Backend** is a RESTful Node.js API built with **Express** and **MongoDB** that powers the EasyExplore travel planning application.  
 It handles **user authentication, itinerary management, saved attractions, reviews**, and **Google Calendar / iCal syncing**.
 
-- **Frontend Repository:** [PRJ566NCC-Team3](https://github.com/Ashwin-BN/PRJ566NCC-Team3)  
+- **Frontend Repository:** [PRJ566NCC-Team3](https://github.com/Ashwin-BN/Easy-Explore)  
 - **Backend Deployment:** [Vercel API](https://prj-566-ncc-team3-user-api.vercel.app/)
 
 ---
